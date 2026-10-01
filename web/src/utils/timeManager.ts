@@ -166,9 +166,10 @@ export function getRecalculatedTrains(
     let seats = bus.seatsAvailable;
     let crowd: 'Low' | 'Moderate' | 'High' | 'Very High' | 'Overflowing' = bus.crowdLevel;
     let eta = bus.arrivalMinutes;
-    let front = bus.crowdBreakdown.front;
-    let middle = bus.crowdBreakdown.middle;
-    let rear = bus.crowdBreakdown.rear;
+    const breakdown = bus.crowdBreakdown || (bus as any).coachBreakdown || { front: 45, middle: 75, rear: 35 };
+    let front = breakdown.front;
+    let middle = breakdown.middle;
+    let rear = breakdown.rear;
 
     if (bus.id === 'train-bl-104') {
       if (isPeak) {
@@ -295,6 +296,7 @@ export function getRecalculatedTrains(
       arrivalMinutes: eta,
       realArrivalTime: computeRealArrivalTime(hours, minutes, eta),
       crowdBreakdown: { front, middle, rear },
+      coachBreakdown: { front, middle, rear },
       factors: updatedFactors,
     };
   });

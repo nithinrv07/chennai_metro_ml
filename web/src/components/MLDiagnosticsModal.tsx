@@ -93,10 +93,14 @@ export const MLDiagnosticsModal: React.FC<MLDiagnosticsModalProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold tracking-widest bg-cyan-400/20 text-cyan-200 px-2.5 py-0.5 rounded-full border border-cyan-300/30">
-                    Active ML Pipeline
+                  <span className={`text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full border ${
+                    health?.model_loaded
+                      ? 'bg-cyan-400/20 text-cyan-200 border-cyan-300/30'
+                      : 'bg-amber-400/20 text-amber-200 border-amber-300/30'
+                  }`}>
+                    {health?.model_loaded ? 'Active ML Pipeline' : 'ML Service Offline (Gateway Fallback)'}
                   </span>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span className={`w-2 h-2 rounded-full ${health?.model_loaded ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
                 </div>
                 <h2 className="text-xl sm:text-2xl font-black tracking-tight mt-1">
                   CMRL Scikit-Learn Transit Engine

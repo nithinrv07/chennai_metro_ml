@@ -299,24 +299,29 @@ export const BoardingProbabilityEngine: React.FC<BoardingProbabilityEngineProps>
                   Best: Coach 4 (Rear DMC2)
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                <div className="p-2 rounded-xl bg-white border border-slate-200 shadow-xs">
-                  <div className="text-[10px] text-slate-500 font-medium">Coach 1 (Women)</div>
-                  <div className="text-xs font-black text-amber-600 font-mono">{selectedBus.crowdBreakdown.front}%</div>
-                </div>
-                <div className="p-2 rounded-xl bg-white border border-slate-200 shadow-xs">
-                  <div className="text-[10px] text-slate-500 font-medium">Coach 2 (Mid)</div>
-                  <div className="text-xs font-black text-rose-600 font-mono">{selectedBus.crowdBreakdown.middle}%</div>
-                </div>
-                <div className="p-2 rounded-xl bg-white border border-slate-200 shadow-xs">
-                  <div className="text-[10px] text-slate-500 font-medium">Coach 3 (Mid)</div>
-                  <div className="text-xs font-black text-rose-600 font-mono">{selectedBus.crowdBreakdown.middle}%</div>
-                </div>
-                <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-300 shadow-xs">
-                  <div className="text-[10px] text-emerald-800 font-bold">Coach 4 (Rear ★)</div>
-                  <div className="text-xs font-black text-emerald-700 font-mono">{selectedBus.crowdBreakdown.rear}%</div>
-                </div>
-              </div>
+              {(() => {
+                const busBreakdown = selectedBus.crowdBreakdown || (selectedBus as any).coachBreakdown || { front: 45, middle: 75, rear: 35 };
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                    <div className="p-2 rounded-xl bg-white border border-slate-200 shadow-xs">
+                      <div className="text-[10px] text-slate-500 font-medium">Coach 1 (Women)</div>
+                      <div className="text-xs font-black text-amber-600 font-mono">{busBreakdown.front}%</div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white border border-slate-200 shadow-xs">
+                      <div className="text-[10px] text-slate-500 font-medium">Coach 2 (Mid)</div>
+                      <div className="text-xs font-black text-rose-600 font-mono">{busBreakdown.middle}%</div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white border border-slate-200 shadow-xs">
+                      <div className="text-[10px] text-slate-500 font-medium">Coach 3 (Mid)</div>
+                      <div className="text-xs font-black text-rose-600 font-mono">{busBreakdown.middle}%</div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-300 shadow-xs">
+                      <div className="text-[10px] text-emerald-800 font-bold">Coach 4 (Rear ★)</div>
+                      <div className="text-xs font-black text-emerald-700 font-mono">{busBreakdown.rear}%</div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Direct Action Buttons */}

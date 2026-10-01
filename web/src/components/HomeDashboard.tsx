@@ -296,26 +296,31 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                   Stand at Coach 4 (Rear)
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div className="p-2.5 rounded-xl bg-white border border-slate-200 text-center">
-                  <span className="text-[10px] font-bold text-slate-400 block">Coach 1 (Women)</span>
-                  <span className="text-xs font-black text-slate-800 font-mono">{heroBus.crowdBreakdown.front}% load</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-center">
-                  <span className="text-[10px] font-bold text-rose-500 block">Coach 2 (Mid)</span>
-                  <span className="text-xs font-black text-rose-700 font-mono">{heroBus.crowdBreakdown.middle}% load</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-center">
-                  <span className="text-[10px] font-bold text-rose-500 block">Coach 3 (Mid)</span>
-                  <span className="text-xs font-black text-rose-700 font-mono">{heroBus.crowdBreakdown.middle}% load</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-center ring-1 ring-emerald-200">
-                  <span className="text-[10px] font-bold text-emerald-700 block flex items-center justify-center gap-1">
-                    Coach 4 (Rear) ★
-                  </span>
-                  <span className="text-xs font-black text-emerald-700 font-mono">{heroBus.crowdBreakdown.rear}% load</span>
-                </div>
-              </div>
+              {(() => {
+                const heroBreakdown = heroBus.crowdBreakdown || (heroBus as any).coachBreakdown || { front: 45, middle: 75, rear: 35 };
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="p-2.5 rounded-xl bg-white border border-slate-200 text-center">
+                      <span className="text-[10px] font-bold text-slate-400 block">Coach 1 (Women)</span>
+                      <span className="text-xs font-black text-slate-800 font-mono">{heroBreakdown.front}% load</span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-center">
+                      <span className="text-[10px] font-bold text-rose-500 block">Coach 2 (Mid)</span>
+                      <span className="text-xs font-black text-rose-700 font-mono">{heroBreakdown.middle}% load</span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-center">
+                      <span className="text-[10px] font-bold text-rose-500 block">Coach 3 (Mid)</span>
+                      <span className="text-xs font-black text-rose-700 font-mono">{heroBreakdown.middle}% load</span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-center ring-1 ring-emerald-200">
+                      <span className="text-[10px] font-bold text-emerald-700 block flex items-center justify-center gap-1">
+                        Coach 4 (Rear) ★
+                      </span>
+                      <span className="text-xs font-black text-emerald-700 font-mono">{heroBreakdown.rear}% load</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Visual Probability Fill Bar */}

@@ -198,7 +198,8 @@ export default function App() {
             isPeakHour={isPeak}
             peakLabel={peakLabel}
             isLiveClock={isLive}
-            mlAccuracy={mlHealth?.accuracy_score}
+            mlAccuracy={mlHealth?.model_loaded ? mlHealth?.accuracy_score : undefined}
+            isModelLoaded={Boolean(mlHealth?.model_loaded)}
             onOpenProfile={() => setShowProfileModal(true)}
             onOpenTimeModal={() => setShowTimeModal(true)}
             onOpenStationModal={() => setShowStationModal(true)}

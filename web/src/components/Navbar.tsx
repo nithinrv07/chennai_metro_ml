@@ -12,6 +12,7 @@ interface NavbarProps {
   peakLabel: string;
   isLiveClock: boolean;
   mlAccuracy?: number;
+  isModelLoaded?: boolean;
   onOpenProfile: () => void;
   onOpenTimeModal: () => void;
   onOpenStationModal?: () => void;
@@ -27,6 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   peakLabel,
   isLiveClock,
   mlAccuracy,
+  isModelLoaded,
   onOpenProfile,
   onOpenTimeModal,
   onOpenStationModal,
@@ -110,17 +112,27 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             id="navbar-ml-status-btn"
             onClick={onOpenMLModal}
-            title="Click to view Scikit-Learn Model Telemetry & Playground"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 text-cyan-950 text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer active:scale-98"
+            title={isModelLoaded ? "Click to view Scikit-Learn Model Telemetry & Playground" : "ML backend offline (Gateway Fallback Mode)"}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer active:scale-98 ${
+              isModelLoaded
+                ? 'bg-cyan-50 hover:bg-cyan-100 border-cyan-200 text-cyan-950'
+                : 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-950'
+            }`}
           >
             <span className="flex h-2 w-2 relative shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-600" />
+              {isModelLoaded ? (
+                <>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-600" />
+                </>
+              ) : (
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+              )}
             </span>
-            <Cpu className="w-3.5 h-3.5 text-cyan-700 shrink-0" />
+            <Cpu className={`w-3.5 h-3.5 shrink-0 ${isModelLoaded ? 'text-cyan-700' : 'text-amber-700'}`} />
             <span className="hidden sm:inline font-mono">ML:</span>
-            <span className="font-mono text-cyan-800">
-              {mlAccuracy ? `${(mlAccuracy * 100).toFixed(1)}%` : '89.3%'}
+            <span className={`font-mono ${isModelLoaded ? 'text-cyan-800' : 'text-amber-800'}`}>
+              {isModelLoaded ? (mlAccuracy ? `${(mlAccuracy * 100).toFixed(1)}%` : '89.3%') : 'Offline'}
             </span>
           </button>
         </div>

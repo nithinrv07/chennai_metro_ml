@@ -181,59 +181,73 @@ export function calculateCommuterRoute(
   // Case 3: Origin on Blue Line, Destination on Green Line
   else if (blueIdx1 !== -1 && greenIdx2 !== -1) {
     isDirect = false;
-    // Choose best interchange between Alandur and Central
+    // Choose best interchange between Alandur and Central based on whole-journey stops
     const alandurBlueIdx = BLUE_LINE_STATION_IDS.indexOf('stop-alandur');
     const centralBlueIdx = BLUE_LINE_STATION_IDS.indexOf('stop-central');
+    const alandurGreenIdx = GREEN_LINE_STATION_IDS.indexOf('stop-alandur');
+    const centralGreenIdx = GREEN_LINE_STATION_IDS.indexOf('stop-central');
 
-    const distToAlandur = Math.abs(blueIdx1 - alandurBlueIdx);
-    const distToCentral = Math.abs(blueIdx1 - centralBlueIdx);
+    // Route via Alandur
+    const seg1Alandur = blueIdx1 <= alandurBlueIdx
+      ? BLUE_LINE_STATION_IDS.slice(blueIdx1, alandurBlueIdx + 1)
+      : BLUE_LINE_STATION_IDS.slice(alandurBlueIdx, blueIdx1 + 1).reverse();
+    const seg2Alandur = alandurGreenIdx <= greenIdx2
+      ? GREEN_LINE_STATION_IDS.slice(alandurGreenIdx + 1, greenIdx2 + 1)
+      : GREEN_LINE_STATION_IDS.slice(greenIdx2, alandurGreenIdx).reverse();
+    const routeAlandur = [...seg1Alandur, ...seg2Alandur];
 
-    const useAlandur = distToAlandur <= distToCentral;
+    // Route via Central
+    const seg1Central = blueIdx1 <= centralBlueIdx
+      ? BLUE_LINE_STATION_IDS.slice(blueIdx1, centralBlueIdx + 1)
+      : BLUE_LINE_STATION_IDS.slice(centralBlueIdx, blueIdx1 + 1).reverse();
+    const seg2Central = centralGreenIdx <= greenIdx2
+      ? GREEN_LINE_STATION_IDS.slice(centralGreenIdx + 1, greenIdx2 + 1)
+      : GREEN_LINE_STATION_IDS.slice(greenIdx2, centralGreenIdx).reverse();
+    const routeCentral = [...seg1Central, ...seg2Central];
+
+    const useAlandur = routeAlandur.length < routeCentral.length;
+    routeStationIds = useAlandur ? routeAlandur : routeCentral;
     const interchangeId = useAlandur ? 'stop-alandur' : 'stop-central';
     interchangeStation = stationMap.get(interchangeId);
 
-    // Segment 1: Blue line to Interchange
-    const targetBlueIdx = useAlandur ? alandurBlueIdx : centralBlueIdx;
-    const seg1 = blueIdx1 <= targetBlueIdx
-      ? BLUE_LINE_STATION_IDS.slice(blueIdx1, targetBlueIdx + 1)
-      : BLUE_LINE_STATION_IDS.slice(targetBlueIdx, blueIdx1 + 1).reverse();
-
-    // Segment 2: Green line from Interchange to Destination
-    const interchangeGreenIdx = GREEN_LINE_STATION_IDS.indexOf(interchangeId);
-    const seg2 = interchangeGreenIdx <= greenIdx2
-      ? GREEN_LINE_STATION_IDS.slice(interchangeGreenIdx + 1, greenIdx2 + 1)
-      : GREEN_LINE_STATION_IDS.slice(greenIdx2, interchangeGreenIdx).reverse();
-
-    routeStationIds = [...seg1, ...seg2];
-    lineSummary = `Blue Line ➔ Transfer at ${interchangeStation?.name.split(' ')[0]} ➔ Green Line`;
-    directionLabel = `Transfer at ${interchangeStation?.name.split(' ')[0]}`;
+    const interchangeShortName = interchangeStation?.name.includes('Central') ? 'Central' : interchangeStation?.name.split(' ')[0];
+    lineSummary = `Blue Line ➔ Transfer at ${interchangeShortName} ➔ Green Line`;
+    directionLabel = `Transfer at ${interchangeShortName}`;
   }
   // Case 4: Origin on Green Line, Destination on Blue Line
   else if (greenIdx1 !== -1 && blueIdx2 !== -1) {
     isDirect = false;
     const alandurGreenIdx = GREEN_LINE_STATION_IDS.indexOf('stop-alandur');
     const centralGreenIdx = GREEN_LINE_STATION_IDS.indexOf('stop-central');
+    const alandurBlueIdx = BLUE_LINE_STATION_IDS.indexOf('stop-alandur');
+    const centralBlueIdx = BLUE_LINE_STATION_IDS.indexOf('stop-central');
 
-    const distToAlandur = Math.abs(greenIdx1 - alandurGreenIdx);
-    const distToCentral = Math.abs(greenIdx1 - centralGreenIdx);
+    // Route via Alandur
+    const seg1Alandur = greenIdx1 <= alandurGreenIdx
+      ? GREEN_LINE_STATION_IDS.slice(greenIdx1, alandurGreenIdx + 1)
+      : GREEN_LINE_STATION_IDS.slice(alandurGreenIdx, greenIdx1 + 1).reverse();
+    const seg2Alandur = alandurBlueIdx <= blueIdx2
+      ? BLUE_LINE_STATION_IDS.slice(alandurBlueIdx + 1, blueIdx2 + 1)
+      : BLUE_LINE_STATION_IDS.slice(blueIdx2, alandurBlueIdx).reverse();
+    const routeAlandur = [...seg1Alandur, ...seg2Alandur];
 
-    const useAlandur = distToAlandur <= distToCentral;
+    // Route via Central
+    const seg1Central = greenIdx1 <= centralGreenIdx
+      ? GREEN_LINE_STATION_IDS.slice(greenIdx1, centralGreenIdx + 1)
+      : GREEN_LINE_STATION_IDS.slice(centralGreenIdx, greenIdx1 + 1).reverse();
+    const seg2Central = centralBlueIdx <= blueIdx2
+      ? BLUE_LINE_STATION_IDS.slice(centralBlueIdx + 1, blueIdx2 + 1)
+      : BLUE_LINE_STATION_IDS.slice(blueIdx2, centralBlueIdx).reverse();
+    const routeCentral = [...seg1Central, ...seg2Central];
+
+    const useAlandur = routeAlandur.length < routeCentral.length;
+    routeStationIds = useAlandur ? routeAlandur : routeCentral;
     const interchangeId = useAlandur ? 'stop-alandur' : 'stop-central';
     interchangeStation = stationMap.get(interchangeId);
 
-    const targetGreenIdx = useAlandur ? alandurGreenIdx : centralGreenIdx;
-    const seg1 = greenIdx1 <= targetGreenIdx
-      ? GREEN_LINE_STATION_IDS.slice(greenIdx1, targetGreenIdx + 1)
-      : GREEN_LINE_STATION_IDS.slice(targetGreenIdx, greenIdx1 + 1).reverse();
-
-    const interchangeBlueIdx = BLUE_LINE_STATION_IDS.indexOf(interchangeId);
-    const seg2 = interchangeBlueIdx <= blueIdx2
-      ? BLUE_LINE_STATION_IDS.slice(interchangeBlueIdx + 1, blueIdx2 + 1)
-      : BLUE_LINE_STATION_IDS.slice(blueIdx2, interchangeBlueIdx).reverse();
-
-    routeStationIds = [...seg1, ...seg2];
-    lineSummary = `Green Line ➔ Transfer at ${interchangeStation?.name.split(' ')[0]} ➔ Blue Line`;
-    directionLabel = `Transfer at ${interchangeStation?.name.split(' ')[0]}`;
+    const interchangeShortName = interchangeStation?.name.includes('Central') ? 'Central' : interchangeStation?.name.split(' ')[0];
+    lineSummary = `Green Line ➔ Transfer at ${interchangeShortName} ➔ Blue Line`;
+    directionLabel = `Transfer at ${interchangeShortName}`;
   }
   // Fallback: Default directly to slice between origin and dest
   else {

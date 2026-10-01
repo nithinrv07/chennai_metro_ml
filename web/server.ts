@@ -103,21 +103,40 @@ app.get('/api/ml/health', async (req, res) => {
       return res.json(data);
     }
   } catch (err: any) {
-    // Fallback if ML service is booting
+    // Fallback if ML service is booting or unreachable
   }
 
   res.json({
-    status: 'ok',
+    status: 'offline',
     service: 'Chennai Metro ML Gateway',
-    model_loaded: true,
+    model_loaded: false,
     model_type: 'RandomForestClassifier',
     accuracy_score: 0.8933,
     classes: ['Green', 'Red', 'Yellow'],
     total_training_samples: 19440,
     supported_stations_count: 36,
-    note: 'Inference pipeline initialized and ready',
+    note: 'Python ML service unreachable. Operating in gateway fallback mode.',
     timestamp: new Date().toISOString(),
   });
+});
+
+// ML Model Retrain Endpoint (Proxied to Python ML service)
+app.post('/api/ml/retrain', async (req, res) => {
+  try {
+    const response = await fetch(`${ML_SERVICE_URL}/api/ml/retrain`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return res.json(data);
+    }
+    const errData = await response.json().catch(() => ({}));
+    return res.status(response.status).json(errData);
+  } catch (err: any) {
+    console.warn('[ML Gateway] ML /retrain error:', err.message);
+    return res.status(503).json({ error: 'ML service offline for retraining' });
+  }
 });
 
 // ML Crowd Prediction
@@ -150,6 +169,7 @@ app.post('/api/ml/predict', async (req, res) => {
       boarding_probability: isPeak ? 58 : 96,
       seats_available: isPeak ? 12 : 48,
       coach_breakdown: isPeak ? { front: 72, middle: 88, rear: 54 } : { front: 22, middle: 32, rear: 18 },
+      crowd_breakdown: isPeak ? { front: 72, middle: 88, rear: 54 } : { front: 22, middle: 32, rear: 18 },
       recommendations: [
         'ML prediction generated from Random Forest pipeline.',
         'Coach 4 (Rear DMC2) provides optimal boarding clearance.',
@@ -171,15 +191,53 @@ app.post('/api/ml/predict-trains', async (req, res) => {
       const data = await response.json();
       return res.json(data);
     }
+    if (response.status === 400 || response.status === 422) {
+      const errData = await response.json().catch(() => ({}));
+      return res.status(response.status).json(errData);
+    }
   } catch (err: any) {
     console.warn('[ML Gateway] ML /predict-trains fallback:', err.message);
   }
 
   // Graceful fallback if ML backend is restarting
-  const { station_name = 'Guindy Metro Station', hour = 8, minute = 30, is_peak_hour = 1 } = req.body;
+  const { station_name = 'Guindy Metro Station', destination = 'Puratchi Thalaivar Dr. M.G.R Central', is_peak_hour = 1 } = req.body;
+  const reqHour = Number.isFinite(Number(req.body.hour)) ? Number(req.body.hour) : 8;
+  const reqMinute = Number.isFinite(Number(req.body.minute)) ? Number(req.body.minute) : 30;
+
+  // Station validation
+  const validKeywords = [
+    'guindy', 'central', 'mgr', 'airport', 'maa', 'egmore', 'alandur', 'koyambedu', 'cmbt',
+    'anna nagar', 'vadapalani', 'ashok nagar', 'st. thomas mount', 'thousand lights', 'lic',
+    'govt estate', 'government estate', 'saidapet', 'little mount', 'meenambakkam', 'nanganallur',
+    'teynampet', 'nandanam', 'ag-dms', 'wimco', 'high court', 'mannadi', 'washermenpet',
+    'washermanpet', 'ekkattuthangal', 'arumbakkam', 'thirumangalam', 'shenoy nagar', 'kilpauk',
+    'nehru park', 'pachaiyappas', 'tollgate', 'kaladipet', 'tiruvottriyur', 'tondiarpet'
+  ];
+  const stLower = String(station_name).toLowerCase();
+  const isValidStation = validKeywords.some(k => stLower.includes(k));
+  if (!isValidStation) {
+    return res.status(400).json({ detail: `Invalid station: '${station_name}'. Must be a valid Chennai Metro station.` });
+  }
+
+  // Enforce operating hours (05:00 to 23:00)
+  if (reqHour < 5 || reqHour >= 23) {
+    return res.json({
+      station_name,
+      destination,
+      hour: reqHour,
+      minute: reqMinute,
+      ml_confidence: 0,
+      base_crowd_level: 'Closed',
+      base_density_pct: 0,
+      trains: [],
+      service_status: 'Closed',
+      message: 'Chennai Metro is closed between 23:00 and 05:00. Operations resume at 05:00 AM.',
+    });
+  }
+
   const isPeak = Boolean(is_peak_hour);
   const computeTimeStr = (arrMins: number) => {
-    const total = ((Number(hour) || 8) * 60 + (Number(minute) || 30) + arrMins) % (24 * 60);
+    const total = (reqHour * 60 + reqMinute + arrMins) % (24 * 60);
     const h = Math.floor(total / 60);
     const m = total % 60;
     const period = h >= 12 ? 'PM' : 'AM';
@@ -187,21 +245,140 @@ app.post('/api/ml/predict-trains', async (req, res) => {
     return `${h12 < 10 ? '0' + h12 : h12}:${m < 10 ? '0' + m : m} ${period}`;
   };
 
-  return res.json({
-    station_name,
-    hour,
-    minute,
-    ml_confidence: 94.2,
-    base_crowd_level: isPeak ? 'High' : 'Low',
-    base_density_pct: isPeak ? 78 : 32,
-    trains: [
+  const destLower = String(destination).toLowerCase();
+  const isAirportDest = destLower.includes('airport') || destLower.includes('maa');
+  const isGreenLineOrigin = stLower.includes('egmore') || stLower.includes('koyambedu') || stLower.includes('vadapalani') || stLower.includes('ashok nagar') || stLower.includes('anna nagar');
+
+  let trains = [];
+  if (isGreenLineOrigin) {
+    trains = [
+      {
+        id: 'train-gl-208',
+        routeNumber: 'GL-208',
+        name: 'Green Line • Central Direct',
+        lineType: 'Green Line',
+        lineColor: 'green',
+        destination: 'Puratchi Thalaivar Dr. M.G.R Central',
+        currentLocation: `Approaching ${station_name}`,
+        nextStop: station_name,
+        arrivalMinutes: 4,
+        realArrivalTime: computeTimeStr(4),
+        historicalSuccessRate: 88,
+        boardingProbability: isPeak ? 58 : 92,
+        crowdLevel: isPeak ? 'High' : 'Low',
+        capacityPercentage: isPeak ? 88 : 42,
+        seatsAvailable: isPeak ? 6 : 38,
+        confidenceScore: 91.0,
+        totalCapacity: 240,
+        fare: '₹40',
+        acStatus: 'Full AC',
+        doorsCount: 4,
+        platformNumber: 'Platform 2 (Northbound to Central)',
+        wheelchairAccessible: true,
+        crowdBreakdown: { front: isPeak ? 86 : 30, middle: isPeak ? 94 : 45, rear: isPeak ? 74 : 26 },
+        coachBreakdown: { front: isPeak ? 86 : 30, middle: isPeak ? 94 : 45, rear: isPeak ? 74 : 26 },
+        isRecommended: true,
+        coachReason: 'Green Line Northbound to Central.',
+      },
+      {
+        id: 'train-gl-214',
+        routeNumber: 'GL-214',
+        name: 'Green Line • St. Thomas Mount Direct',
+        lineType: 'Green Line',
+        lineColor: 'green',
+        destination: 'St. Thomas Mount Metro Station',
+        currentLocation: 'Shenoy Nagar Corridor',
+        nextStop: station_name,
+        arrivalMinutes: 8,
+        realArrivalTime: computeTimeStr(8),
+        historicalSuccessRate: 86,
+        boardingProbability: isPeak ? 48 : 88,
+        crowdLevel: isPeak ? 'High' : 'Moderate',
+        capacityPercentage: isPeak ? 82 : 46,
+        seatsAvailable: isPeak ? 12 : 34,
+        confidenceScore: 89.0,
+        totalCapacity: 240,
+        fare: '₹30',
+        acStatus: 'Full AC',
+        doorsCount: 4,
+        platformNumber: 'Platform 1 (Southbound)',
+        wheelchairAccessible: true,
+        crowdBreakdown: { front: isPeak ? 78 : 28, middle: isPeak ? 88 : 40, rear: isPeak ? 68 : 22 },
+        coachBreakdown: { front: isPeak ? 78 : 28, middle: isPeak ? 88 : 40, rear: isPeak ? 68 : 22 },
+        isRecommended: false,
+        coachReason: 'Green Line Southbound via CMBT & Alandur.',
+      },
+    ];
+  } else if (isAirportDest) {
+    trains = [
+      {
+        id: 'train-bl-101',
+        routeNumber: 'BL-101',
+        name: 'Blue Line • Airport Express (Southbound)',
+        lineType: 'Blue Line',
+        lineColor: 'blue',
+        destination: 'Chennai International Airport (MAA)',
+        currentLocation: `Approaching ${station_name} on Track 1`,
+        nextStop: station_name,
+        arrivalMinutes: 2,
+        realArrivalTime: computeTimeStr(2),
+        historicalSuccessRate: 95,
+        boardingProbability: isPeak ? 76 : 96,
+        crowdLevel: isPeak ? 'Moderate' : 'Low',
+        capacityPercentage: isPeak ? 72 : 32,
+        seatsAvailable: isPeak ? 24 : 50,
+        confidenceScore: 95.0,
+        totalCapacity: 240,
+        fare: '₹40',
+        acStatus: 'Full AC',
+        doorsCount: 4,
+        platformNumber: 'Platform 1 (Southbound to Airport)',
+        wheelchairAccessible: true,
+        crowdBreakdown: { front: isPeak ? 64 : 20, middle: isPeak ? 80 : 32, rear: isPeak ? 44 : 16 },
+        coachBreakdown: { front: isPeak ? 64 : 20, middle: isPeak ? 80 : 32, rear: isPeak ? 44 : 16 },
+        isRecommended: true,
+        coachReason: 'Direct Southbound train to Airport. Rear DMC2 offers optimal seat clearance.',
+      },
+      {
+        id: 'train-bl-103',
+        routeNumber: 'BL-103',
+        name: 'Blue Line • Airport Rapid (Southbound)',
+        lineType: 'Blue Line',
+        lineColor: 'blue',
+        destination: 'Chennai International Airport (MAA)',
+        currentLocation: 'Saidapet Overhead Corridor',
+        nextStop: station_name,
+        arrivalMinutes: 7,
+        realArrivalTime: computeTimeStr(7),
+        historicalSuccessRate: 92,
+        boardingProbability: isPeak ? 88 : 98,
+        crowdLevel: 'Low',
+        capacityPercentage: isPeak ? 45 : 22,
+        seatsAvailable: isPeak ? 42 : 56,
+        confidenceScore: 93.5,
+        totalCapacity: 240,
+        fare: '₹40',
+        acStatus: 'Full AC',
+        doorsCount: 4,
+        platformNumber: 'Platform 1 (Southbound to Airport)',
+        wheelchairAccessible: true,
+        crowdBreakdown: { front: 22, middle: 34, rear: 18 },
+        coachBreakdown: { front: 22, middle: 34, rear: 18 },
+        isRecommended: false,
+        coachReason: 'High seating availability in Coach 4.',
+      },
+    ];
+  } else {
+    // Default Northbound (Central / Egmore via Central)
+    const isEgmore = destLower.includes('egmore');
+    trains = [
       {
         id: 'train-bl-104',
         routeNumber: 'BL-104',
-        name: 'Blue Line • Airport Express',
+        name: 'Blue Line • Chennai Central Express',
         lineType: 'Blue Line',
         lineColor: 'blue',
-        destination: 'Puratchi Thalaivar Dr. M.G.R Central',
+        destination: isEgmore ? 'Puratchi Thalaivar Dr. M.G.R Central (Transfer for Egmore)' : 'Puratchi Thalaivar Dr. M.G.R Central',
         currentLocation: `Approaching ${station_name} on Track 2`,
         nextStop: station_name,
         arrivalMinutes: 2,
@@ -216,37 +393,14 @@ app.post('/api/ml/predict-trains', async (req, res) => {
         fare: '₹40',
         acStatus: 'Full AC',
         doorsCount: 4,
-        platformNumber: 'Platform 2',
+        platformNumber: 'Platform 2 (Northbound to Central)',
         wheelchairAccessible: true,
+        crowdBreakdown: { front: isPeak ? 68 : 22, middle: isPeak ? 84 : 35, rear: isPeak ? 48 : 18 },
         coachBreakdown: { front: isPeak ? 68 : 22, middle: isPeak ? 84 : 35, rear: isPeak ? 48 : 18 },
         isRecommended: true,
-        coachReason: 'Optimal seat clearance in Coach 4 (Rear DMC2)',
-      },
-      {
-        id: 'train-gl-208',
-        routeNumber: 'GL-208',
-        name: 'Green Line • Central Direct',
-        lineType: 'Green Line',
-        lineColor: 'green',
-        destination: 'Chennai Central via Koyambedu',
-        currentLocation: 'Ekkattuthangal Flyover',
-        nextStop: station_name,
-        arrivalMinutes: 6,
-        realArrivalTime: computeTimeStr(6),
-        historicalSuccessRate: 88,
-        boardingProbability: isPeak ? 58 : 92,
-        crowdLevel: isPeak ? 'High' : 'Low',
-        capacityPercentage: isPeak ? 88 : 42,
-        seatsAvailable: isPeak ? 6 : 38,
-        confidenceScore: 91.0,
-        totalCapacity: 240,
-        fare: '₹40',
-        acStatus: 'Full AC',
-        doorsCount: 4,
-        platformNumber: 'Platform 1',
-        wheelchairAccessible: true,
-        coachBreakdown: { front: isPeak ? 86 : 30, middle: isPeak ? 94 : 45, rear: isPeak ? 74 : 26 },
-        isRecommended: false,
+        coachReason: isEgmore
+          ? 'Board BL-104 Northbound to Central; transfer at Central to Green Line for 1 stop to Egmore.'
+          : 'Optimal seat clearance in Coach 4 (Rear DMC2).',
       },
       {
         id: 'train-bl-112',
@@ -257,8 +411,8 @@ app.post('/api/ml/predict-trains', async (req, res) => {
         destination: 'Wimco Nagar North Depot',
         currentLocation: 'Airport Station (Originating)',
         nextStop: 'Meenambakkam',
-        arrivalMinutes: 10,
-        realArrivalTime: computeTimeStr(10),
+        arrivalMinutes: 9,
+        realArrivalTime: computeTimeStr(9),
         historicalSuccessRate: 97,
         boardingProbability: 97,
         crowdLevel: 'Low',
@@ -269,12 +423,25 @@ app.post('/api/ml/predict-trains', async (req, res) => {
         fare: '₹50',
         acStatus: 'Full AC',
         doorsCount: 4,
-        platformNumber: 'Platform 2',
+        platformNumber: 'Platform 2 (Northbound)',
         wheelchairAccessible: true,
+        crowdBreakdown: { front: 18, middle: 28, rear: 14 },
         coachBreakdown: { front: 18, middle: 28, rear: 14 },
-        isRecommended: isPeak,
+        isRecommended: false,
+        coachReason: 'Originating empty rake from Airport with 50+ open seats.',
       },
-    ],
+    ];
+  }
+
+  return res.json({
+    station_name,
+    destination,
+    hour: reqHour,
+    minute: reqMinute,
+    ml_confidence: 94.2,
+    base_crowd_level: isPeak ? 'High' : 'Low',
+    base_density_pct: isPeak ? 78 : 32,
+    trains,
   });
 });
 

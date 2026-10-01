@@ -10,7 +10,47 @@ from sklearn.metrics import classification_report, accuracy_score
 
 # 1. Load the generated dataset
 data_path = "data/processed/training_crowd_data.csv"
+feedback_path = "data/processed/user_feedback.csv"
 df = pd.read_csv(data_path)
+
+# Map feedback records if available
+if os.path.exists(feedback_path):
+    try:
+        fb_df = pd.read_csv(feedback_path)
+        if not fb_df.empty:
+            crowd_map = {
+                "Low": "Green", "Moderate": "Yellow", "High": "Red", "Very High": "Red",
+                "Green": "Green", "Yellow": "Yellow", "Red": "Red"
+            }
+            route_station_map = {
+                "BL-104": "Guindy Metro Station",
+                "GL-208": "Alandur Interchange Station",
+                "BL-112": "Puratchi Thalaivar Dr. M.G.R Central",
+                "GL-214": "Guindy Metro Station",
+            }
+            new_rows = []
+            for _, row in fb_df.iterrows():
+                try:
+                    ts = pd.to_datetime(row.get("Timestamp", None)) if pd.notna(row.get("Timestamp", None)) else pd.Timestamp.now()
+                except Exception:
+                    ts = pd.Timestamp.now()
+                hour = ts.hour
+                is_weekend = 1 if ts.weekday() >= 5 else 0
+                is_peak = 1 if ((8 <= hour <= 11) or (17 <= hour <= 20)) and not is_weekend else 0
+                st_name = row.get("Station_Name") if pd.notna(row.get("Station_Name")) else route_station_map.get(str(row.get("Bus_Route", "")), "Guindy Metro Station")
+                c_level = crowd_map.get(str(row.get("Actual_Crowd", "Moderate")).strip(), "Yellow")
+                new_rows.append({
+                    "Hour": hour,
+                    "Is_Weekend": is_weekend,
+                    "Is_Peak_Hour": is_peak,
+                    "Station_Name": st_name,
+                    "Crowd_Level": c_level
+                })
+            if new_rows:
+                df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
+                print(f"Incorporated {len(new_rows)} user feedback records into training set.")
+    except Exception as e:
+        print(f"Notice: Could not load feedback CSV: {e}")
 
 # 2. Define Features (X) and Target Variable (y)
 features = ["Hour", "Is_Weekend", "Is_Peak_Hour", "Station_Name"]
@@ -30,7 +70,7 @@ preprocessor = ColumnTransformer(
 # 4. Build Machine Learning Pipeline
 model_pipeline = Pipeline(steps=[
     ("preprocessor", preprocessor),
-    ("classifier", RandomForestClassifier(n_estimators=100, random_state=42))
+    ("classifier", RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=42))
 ])
 
 # 5. Train-Test Split (80% Training, 20% Testing)
