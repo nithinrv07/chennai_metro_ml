@@ -1,0 +1,6 @@
+{
+  "name": "Boarding Probability & Smart Transit Coach",
+  "description": "AI-powered Chennai Metro (CMRL) boarding probability prediction engine, Smart Coach transit copilot, and Crowd DNA commuter behavioral analytics for Blue & Green Lines.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

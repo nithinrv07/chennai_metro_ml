@@ -1,0 +1,6 @@
+Corridor,Route,Day_Type,Peak_Hours,Peak_Headway_Mins,Non_Peak_Headway_Mins,Short_Loop_Headway_Mins,First_Train,Last_Train
+Corridor-1 (Blue Line),Wimco Nagar Depot - Airport,Weekday,"08:00-11:00, 17:00-20:00",6,7,3.0,04:51,23:00
+Corridor-1 (Blue Line),Wimco Nagar Depot - Airport,Saturday,"08:00-11:00, 17:00-20:00",6,7,,04:51,23:00
+Corridor-1 (Blue Line),Wimco Nagar Depot - Airport,Sunday/Holiday,12:00-20:00,7,10,,04:55,23:08
+Corridor-2 (Green Line),Chennai Central - St. Thomas Mount,Weekday,"08:00-11:00, 17:00-20:00",12,14,,05:02,23:00
+Corridor-2 (Green Line),Chennai Central - St. Thomas Mount,Sunday/Holiday,12:00-20:00,14,20,,04:51,23:17

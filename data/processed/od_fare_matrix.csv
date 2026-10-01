@@ -1,0 +1,57 @@
+Origin_Station,Destination_Station,Base_Fare_INR
+Wimco Nagar Depot,Washermenpet,30
+Wimco Nagar Depot,Chennai Central,30
+Wimco Nagar Depot,AG-DMS,30
+Wimco Nagar Depot,Alandur,30
+Wimco Nagar Depot,Airport,30
+Wimco Nagar Depot,CMBT,30
+Wimco Nagar Depot,St. Thomas Mount,30
+Washermenpet,Wimco Nagar Depot,30
+Washermenpet,Chennai Central,30
+Washermenpet,AG-DMS,30
+Washermenpet,Alandur,30
+Washermenpet,Airport,30
+Washermenpet,CMBT,30
+Washermenpet,St. Thomas Mount,30
+Chennai Central,Wimco Nagar Depot,30
+Chennai Central,Washermenpet,30
+Chennai Central,AG-DMS,30
+Chennai Central,Alandur,30
+Chennai Central,Airport,30
+Chennai Central,CMBT,30
+Chennai Central,St. Thomas Mount,30
+AG-DMS,Wimco Nagar Depot,30
+AG-DMS,Washermenpet,30
+AG-DMS,Chennai Central,30
+AG-DMS,Alandur,30
+AG-DMS,Airport,30
+AG-DMS,CMBT,30
+AG-DMS,St. Thomas Mount,30
+Alandur,Wimco Nagar Depot,20
+Alandur,Washermenpet,20
+Alandur,Chennai Central,20
+Alandur,AG-DMS,20
+Alandur,Airport,20
+Alandur,CMBT,20
+Alandur,St. Thomas Mount,20
+Airport,Wimco Nagar Depot,30
+Airport,Washermenpet,30
+Airport,Chennai Central,30
+Airport,AG-DMS,30
+Airport,Alandur,30
+Airport,CMBT,30
+Airport,St. Thomas Mount,30
+CMBT,Wimco Nagar Depot,20
+CMBT,Washermenpet,20
+CMBT,Chennai Central,20
+CMBT,AG-DMS,20
+CMBT,Alandur,20
+CMBT,Airport,20
+CMBT,St. Thomas Mount,20
+St. Thomas Mount,Wimco Nagar Depot,30
+St. Thomas Mount,Washermenpet,30
+St. Thomas Mount,Chennai Central,30
+St. Thomas Mount,AG-DMS,30
+St. Thomas Mount,Alandur,30
+St. Thomas Mount,Airport,30
+St. Thomas Mount,CMBT,30

@@ -1,0 +1,6 @@
+Distance_Band,Min_Fare_INR,Max_Fare_INR
+0 - 2 km,10,10
+2 - 5 km,20,20
+5 - 10 km,30,30
+10 - 15 km,40,40
+15+ km,50,50

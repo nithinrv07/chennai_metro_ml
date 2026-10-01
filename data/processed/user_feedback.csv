@@ -1,0 +1,2 @@
+Trip_ID,Bus_Route,Predicted_Probability,Actual_Crowd,Boarding_Succeeded,Wait_Minutes,Seat_Secured,Comment,Timestamp
+test-1,BL-104,85.0,Moderate,1,3,1,Comfortable rear coach,2026-09-07T13:35:31.771169
