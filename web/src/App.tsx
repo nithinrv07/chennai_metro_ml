@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Navbar } from './components/Navbar';
 import { BottomNav, NavTab } from './components/BottomNav';
@@ -11,37 +11,76 @@ import { SplashScreen } from './components/SplashScreen';
 import { OnboardingModal } from './components/OnboardingModal';
 import { LoginModal } from './components/LoginModal';
 import { HomeDashboard } from './components/HomeDashboard';
-import { BoardingProbabilityEngine } from './components/BoardingProbabilityEngine';
-import { SmartCoach } from './components/SmartCoach';
-import { CrowdDNA } from './components/CrowdDNA';
-import { MetroNetworkMap } from './components/MetroNetworkMap';
 import { LiveTrackingModal } from './components/LiveTrackingModal';
 import { TripCompletedModal } from './components/TripCompletedModal';
 import { ProfileModal } from './components/ProfileModal';
 import { TimeControllerModal } from './components/TimeControllerModal';
 import { StationSelectModal } from './components/StationSelectModal';
-import { MLDiagnosticsModal } from './components/MLDiagnosticsModal';
 import { INITIAL_BUSES, ALL_METRO_STATIONS, NEARBY_STOPS, INITIAL_PROFILE } from './data/transitData';
-import { BusTransit, UserProfile, RouteStop } from './types';
+import { BusTransit, UserProfile, RouteStop, Language, TelemetryDataSource } from './types';
 import { fetchMLHealth, fetchMLTrains, MLHealthResponse } from './utils/mlApi';
 import { 
   TimeMode, DayOfWeek, formatTime12h, getDayName, 
   evaluatePeakStatus, getRecalculatedTrains, computeRealArrivalTime 
 } from './utils/timeManager';
+import { RefreshCw, MapPin, TrainFront } from 'lucide-react';
+
+// ============================================================================
+// PERFORMANCE UPGRADE: Lazy-load large bundles (D3 Network Map, ML Diagnostics, Crowd DNA)
+// Reduces initial JavaScript entry chunk from ~650 KB to lightweight commuter shell
+// ============================================================================
+const MetroNetworkMap = lazy(() => 
+  import('./components/MetroNetworkMap').then(module => ({ default: module.MetroNetworkMap }))
+);
+
+const MLDiagnosticsModal = lazy(() => 
+  import('./components/MLDiagnosticsModal').then(module => ({ default: module.MLDiagnosticsModal }))
+);
+
+const BoardingProbabilityEngine = lazy(() => 
+  import('./components/BoardingProbabilityEngine').then(module => ({ default: module.BoardingProbabilityEngine }))
+);
+
+const SmartCoach = lazy(() => 
+  import('./components/SmartCoach').then(module => ({ default: module.SmartCoach }))
+);
+
+const CrowdDNA = lazy(() => 
+  import('./components/CrowdDNA').then(module => ({ default: module.CrowdDNA }))
+);
+
+// Fallback loader for lazy-loaded screens
+const ViewLoader: React.FC<{ label: string }> = ({ label }) => (
+  <div className="flex flex-col items-center justify-center py-20 px-4 space-y-3 bg-white/60 backdrop-blur-sm rounded-3xl border border-slate-200">
+    <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#0066B2] flex items-center justify-center animate-spin">
+      <RefreshCw className="w-5 h-5" />
+    </div>
+    <span className="text-xs font-bold text-slate-600">{label}...</span>
+  </div>
+);
 
 export default function App() {
   // App Lifecycle States
   const [showSplash, setShowSplash] = useState<boolean>(true);
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(false); // Onboarding is optional
   const [showLogin, setShowLogin] = useState<boolean>(false);
   
-  // Navigation & View States
-  const [activeTab, setActiveTab] = useState<NavTab>('home');
+  // Navigation & View States: commuter-first tabs ('plan', 'map', 'mytrip', 'trends')
+  const [activeTab, setActiveTab] = useState<NavTab>('plan');
+  const [language, setLanguage] = useState<Language>('en');
   const [selectedBusId, setSelectedBusId] = useState<string>(INITIAL_BUSES[0].id);
   const [selectedDestination, setSelectedDestination] = useState<string>('Puratchi Thalaivar Dr. M.G.R Central');
   const [currentStop, setCurrentStop] = useState<RouteStop>(ALL_METRO_STATIONS[0] || NEARBY_STOPS[0]);
   const [profile, setProfile] = useState<UserProfile>(INITIAL_PROFILE);
   const [buses, setBuses] = useState<BusTransit[]>(INITIAL_BUSES);
+
+  // Data Transparency & Network States
+  const [telemetrySource, setTelemetrySource] = useState<TelemetryDataSource>('live');
+  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
+  const [isFetchingTrains, setIsFetchingTrains] = useState<boolean>(false);
+  const [hasFetchError, setHasFetchError] = useState<boolean>(false);
+  const [fetchErrorMessage, setFetchErrorMessage] = useState<string>('');
 
   // Active Trip & Modal States
   const [activeTrackingBus, setActiveTrackingBus] = useState<BusTransit | null>(null);
@@ -50,6 +89,7 @@ export default function App() {
   const [showTimeModal, setShowTimeModal] = useState<boolean>(false);
   const [showStationModal, setShowStationModal] = useState<boolean>(false);
   const [showMLModal, setShowMLModal] = useState<boolean>(false);
+  const [showSandboxModal, setShowSandboxModal] = useState<boolean>(false);
   const [mlHealth, setMlHealth] = useState<MLHealthResponse | null>(null);
 
   // Dynamic Live & Simulation Time Engine
@@ -68,6 +108,14 @@ export default function App() {
     return () => clearInterval(timer);
   }, [timeMode]);
 
+  // Update seconds ago counter every second
+  useEffect(() => {
+    const ticker = setInterval(() => {
+      setSecondsAgo(Math.floor((Date.now() - lastUpdateTime) / 1000));
+    }, 1000);
+    return () => clearInterval(ticker);
+  }, [lastUpdateTime]);
+
   // Derive active time values
   const isLive = timeMode === 'live';
   const activeHours = isLive ? currentDate.getHours() : customHours;
@@ -80,49 +128,80 @@ export default function App() {
   // Check ML Service health on mount
   useEffect(() => {
     fetchMLHealth().then((data) => {
-      if (data) setMlHealth(data);
+      if (data) {
+        setMlHealth(data);
+        if (data.model_loaded) {
+          setTelemetrySource('predicted');
+        }
+      }
     });
   }, []);
 
-  // Dynamically recalculate train occupancy, headways & boarding odds on time/station change
-  useEffect(() => {
-    // 1. Instant local optimistic calculation
-    const updated = getRecalculatedTrains(activeHours, activeMinutes, activeDay, currentStop, selectedDestination);
-    setBuses(updated);
+  // Fetch ML predictions
+  const fetchTrainsData = useCallback(async () => {
+    setIsFetchingTrains(true);
+    setHasFetchError(false);
+    setFetchErrorMessage('');
 
-    // 2. Fetch live ML inference from Scikit-Learn backend
-    let isCancelled = false;
     const isWeekend = activeDay === 'Saturday' || activeDay === 'Sunday';
-    fetchMLTrains(
-      currentStop.name,
-      selectedDestination,
-      activeHours,
-      activeMinutes,
-      activeDay,
-      isWeekend,
-      isPeak
-    ).then((mlResult) => {
-      if (!isCancelled) {
-        if (
-          mlResult?.service_status === 'Closed' || 
-          mlResult?.service_status === 'Invalid Station' || 
-          (mlResult && Array.isArray(mlResult.trains) && mlResult.trains.length === 0)
-        ) {
+
+    try {
+      // 1. Instant local optimistic calculation
+      const fallbackList = getRecalculatedTrains(activeHours, activeMinutes, activeDay, currentStop, selectedDestination);
+
+      // 2. Query Scikit-Learn ML backend
+      const mlResult = await fetchMLTrains(
+        currentStop.name,
+        selectedDestination,
+        activeHours,
+        activeMinutes,
+        activeDay,
+        isWeekend,
+        isPeak
+      );
+
+      setLastUpdateTime(Date.now());
+      setSecondsAgo(0);
+
+      if (mlResult) {
+        if (mlResult.service_status === 'Closed' || (Array.isArray(mlResult.trains) && mlResult.trains.length === 0)) {
           setBuses([]);
-        } else if (mlResult?.trains && mlResult.trains.length > 0) {
+          setTelemetrySource('closed');
+        } else if (mlResult.service_status === 'Invalid Station') {
+          setHasFetchError(true);
+          setFetchErrorMessage(`"${currentStop.name}" or "${selectedDestination}" is not recognized on CMRL network.`);
+          setBuses(fallbackList);
+          setTelemetrySource('demo');
+        } else if (mlResult.trains && mlResult.trains.length > 0) {
           const enriched = mlResult.trains.map((t) => ({
             ...t,
             realArrivalTime: t.realArrivalTime || computeRealArrivalTime(activeHours, activeMinutes, t.arrivalMinutes),
           }));
           setBuses(enriched);
+          setTelemetrySource('predicted');
+        } else {
+          setBuses(fallbackList);
+          setTelemetrySource('demo');
         }
+      } else {
+        // Fallback to local high-fidelity simulation
+        setBuses(fallbackList);
+        setTelemetrySource('demo');
       }
-    });
-
-    return () => {
-      isCancelled = true;
-    };
+    } catch (err: any) {
+      console.warn('Failed to fetch train telemetry:', err);
+      const fallbackList = getRecalculatedTrains(activeHours, activeMinutes, activeDay, currentStop, selectedDestination);
+      setBuses(fallbackList);
+      setTelemetrySource('demo');
+    } finally {
+      setIsFetchingTrains(false);
+    }
   }, [activeHours, activeMinutes, activeDay, currentStop, selectedDestination, isPeak]);
+
+  // Recalculate on parameter changes
+  useEffect(() => {
+    fetchTrainsData();
+  }, [fetchTrainsData]);
 
   const handleSelectPreset = (mode: TimeMode, hours: number, minutes: number) => {
     setTimeMode(mode);
@@ -155,7 +234,7 @@ export default function App() {
 
   const handleSplashDone = () => {
     setShowSplash(false);
-    setShowOnboarding(true);
+    // Onboarding is optional: user lands directly into the journey planner!
   };
 
   return (
@@ -167,12 +246,13 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* 2. Onboarding Modal */}
+      {/* 2. Onboarding Modal (Optional) */}
       {showOnboarding && !showSplash && (
         <OnboardingModal
           initialProfile={profile}
           currentStop={currentStop}
           destination={selectedDestination}
+          onSkip={() => setShowOnboarding(false)}
           onComplete={(updated, newStop, newDest) => {
             setProfile(updated);
             if (newStop) setCurrentStop(newStop);
@@ -208,6 +288,8 @@ export default function App() {
             isLiveClock={isLive}
             mlAccuracy={mlHealth?.model_loaded ? mlHealth?.accuracy_score : undefined}
             isModelLoaded={Boolean(mlHealth?.model_loaded)}
+            language={language}
+            onToggleLanguage={() => setLanguage(l => l === 'en' ? 'ta' : 'en')}
             onOpenProfile={() => setShowProfileModal(true)}
             onOpenTimeModal={() => setShowTimeModal(true)}
             onOpenStationModal={() => setShowStationModal(true)}
@@ -217,13 +299,14 @@ export default function App() {
           {/* Main Content Area */}
           <main className="flex-1 px-4 py-5 max-w-5xl mx-auto w-full">
             <AnimatePresence mode="wait">
-              {activeTab === 'home' && (
+              {/* PLAN TAB: Centered around "Which journey should I take?" */}
+              {activeTab === 'plan' && (
                 <motion.div
-                  key="home-tab"
+                  key="plan-tab"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.18 }}
                 >
                   <HomeDashboard
                     buses={buses}
@@ -234,118 +317,113 @@ export default function App() {
                     dayName={activeDay}
                     isPeak={isPeak}
                     peakLabel={peakLabel}
+                    language={language}
+                    telemetrySource={telemetrySource}
+                    lastUpdatedSecondsAgo={secondsAgo}
+                    isLoading={isFetchingTrains}
+                    isStale={secondsAgo > 60}
+                    hasError={hasFetchError}
+                    errorMessage={fetchErrorMessage}
+                    onRefresh={fetchTrainsData}
                     onOpenTimeModal={() => setShowTimeModal(true)}
                     onOpenStationModal={() => setShowStationModal(true)}
                     onSelectStation={(st) => setCurrentStop(st)}
                     onSelectDestination={setSelectedDestination}
                     onSelectBus={(bus) => {
                       setSelectedBusId(bus.id);
-                      setActiveTab('engine');
                     }}
                     onOpenBoardingEngine={(busId) => {
                       if (busId) setSelectedBusId(busId);
-                      setActiveTab('engine');
+                      setShowSandboxModal(true);
                     }}
-                    onOpenSmartCoach={() => setActiveTab('coach')}
-                    onOpenCrowdDNA={() => setActiveTab('profile')}
-                    onOpenMetroMap={() => setActiveTab('network')}
+                    onOpenSmartCoach={() => setActiveTab('mytrip')}
+                    onOpenCrowdDNA={() => setActiveTab('trends')}
+                    onOpenMetroMap={() => setActiveTab('map')}
                     onStartTrip={handleStartTrip}
                   />
                 </motion.div>
               )}
 
-              {activeTab === 'network' && (
+              {/* MAP TAB: Lazy-Loaded Chennai Metro Network Map */}
+              {activeTab === 'map' && (
                 <motion.div
-                  key="network-tab"
+                  key="map-tab"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.18 }}
                 >
-                  <MetroNetworkMap
-                    currentStop={currentStop}
-                    destination={selectedDestination}
-                    buses={buses}
-                    onSelectStation={(st) => setCurrentStop(st)}
-                    onSelectDestination={setSelectedDestination}
-                    onOpenBoardingEngine={(busId) => {
-                      if (busId) setSelectedBusId(busId);
-                      setActiveTab('engine');
-                    }}
-                    onOpenSmartCoach={() => setActiveTab('coach')}
-                  />
+                  <Suspense fallback={<ViewLoader label="Rendering Chennai Metro Interactive Map" />}>
+                    <MetroNetworkMap
+                      currentStop={currentStop}
+                      destination={selectedDestination}
+                      buses={buses}
+                      onSelectStation={(st) => setCurrentStop(st)}
+                      onSelectDestination={setSelectedDestination}
+                      onOpenBoardingEngine={(busId) => {
+                        if (busId) setSelectedBusId(busId);
+                        setShowSandboxModal(true);
+                      }}
+                      onOpenSmartCoach={() => setActiveTab('mytrip')}
+                    />
+                  </Suspense>
                 </motion.div>
               )}
 
-              {activeTab === 'engine' && (
+              {/* MY TRIP TAB: Lazy-Loaded Smart Coach & Live Commuter Assistant */}
+              {activeTab === 'mytrip' && (
                 <motion.div
-                  key="engine-tab"
+                  key="mytrip-tab"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.18 }}
                 >
-                  <BoardingProbabilityEngine
-                    buses={buses}
-                    selectedBusId={selectedBusId}
-                    currentStop={currentStop}
-                    profile={profile}
-                    onSelectBus={(bus) => setSelectedBusId(bus.id)}
-                    onStartTrip={handleStartTrip}
-                    onOpenSmartCoach={() => setActiveTab('coach')}
-                    onOpenStationModal={() => setShowStationModal(true)}
-                    onSelectStation={(st) => setCurrentStop(st)}
-                  />
+                  <Suspense fallback={<ViewLoader label="Loading Smart Coach Guidance" />}>
+                    <SmartCoach
+                      buses={buses}
+                      currentStop={currentStop}
+                      profile={profile}
+                      destination={selectedDestination}
+                      onStartTrip={handleStartTrip}
+                      onOpenStationModal={() => setShowStationModal(true)}
+                    />
+                  </Suspense>
                 </motion.div>
               )}
 
-              {activeTab === 'coach' && (
+              {/* CROWD TRENDS TAB: Lazy-Loaded Crowd DNA Heatmap */}
+              {activeTab === 'trends' && (
                 <motion.div
-                  key="coach-tab"
+                  key="trends-tab"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <SmartCoach
-                    buses={buses}
-                    currentStop={currentStop}
-                    profile={profile}
-                    destination={selectedDestination}
-                    onStartTrip={handleStartTrip}
-                    onOpenStationModal={() => setShowStationModal(true)}
-                  />
-                </motion.div>
-              )}
-
-              {activeTab === 'profile' && (
-                <motion.div
-                  key="profile-tab"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.18 }}
                   className="space-y-6"
                 >
-                  <CrowdDNA
-                    currentRouteNumber={buses.find(b => b.id === selectedBusId)?.routeNumber || 'BL-104'}
-                    currentStationName={currentStop.name}
-                    activeDayName={activeDay}
-                    activeTimeFormatted={simulatedTime}
-                    onSelectTimeSlot={(h, m, d) => {
-                      handleSetCustomTime(h, m, d);
-                    }}
-                  />
+                  <Suspense fallback={<ViewLoader label="Loading Chennai Crowd DNA Historical Patterns" />}>
+                    <CrowdDNA
+                      currentRouteNumber={buses.find(b => b.id === selectedBusId)?.routeNumber || 'BL-104'}
+                      currentStationName={currentStop.name}
+                      activeDayName={activeDay}
+                      activeTimeFormatted={simulatedTime}
+                      onSelectTimeSlot={(h, m, d) => {
+                        handleSetCustomTime(h, m, d);
+                      }}
+                    />
+                  </Suspense>
                 </motion.div>
               )}
             </AnimatePresence>
           </main>
 
-          {/* Bottom Navigation Bar */}
+          {/* Bottom Commuter Navigation Bar */}
           <BottomNav
             activeTab={activeTab}
             onChangeTab={setActiveTab}
-            coachAlertCount={1}
+            activeTripCount={activeTrackingBus ? 1 : 0}
+            language={language}
           />
         </>
       )}
@@ -362,7 +440,7 @@ export default function App() {
         />
       )}
 
-      {/* Trip Completed & Crowd DNA Feedback Modal */}
+      {/* Trip Completed & Feedback Modal */}
       {completedTripBus && (
         <TripCompletedModal
           bus={completedTripBus}
@@ -383,7 +461,7 @@ export default function App() {
           onUpdateProfile={setProfile}
           onOpenCrowdDNA={() => {
             setShowProfileModal(false);
-            setActiveTab('profile');
+            setActiveTab('trends');
           }}
         />
       )}
@@ -418,13 +496,51 @@ export default function App() {
         />
       )}
 
-      {/* ML Diagnostics & Playground Modal */}
+      {/* Admin ML Diagnostics & Retraining Modal (Decoupled Admin Tooling) */}
       {showMLModal && (
-        <MLDiagnosticsModal
-          isOpen={showMLModal}
-          onClose={() => setShowMLModal(false)}
-          currentStationName={currentStop.name}
-        />
+        <Suspense fallback={<div />}>
+          <MLDiagnosticsModal
+            isOpen={showMLModal}
+            onClose={() => setShowMLModal(false)}
+            currentStationName={currentStop.name}
+          />
+        </Suspense>
+      )}
+
+      {/* Optional ML Sandbox Modal */}
+      {showSandboxModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl relative">
+            <button
+              onClick={() => setShowSandboxModal(false)}
+              className="absolute top-4 right-4 text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+            >
+              Close ✕
+            </button>
+            <Suspense fallback={<ViewLoader label="Loading Sandbox" />}>
+              <BoardingProbabilityEngine
+                buses={buses}
+                selectedBusId={selectedBusId}
+                currentStop={currentStop}
+                profile={profile}
+                onSelectBus={(bus) => setSelectedBusId(bus.id)}
+                onStartTrip={(bus) => {
+                  setShowSandboxModal(false);
+                  handleStartTrip(bus);
+                }}
+                onOpenSmartCoach={() => {
+                  setShowSandboxModal(false);
+                  setActiveTab('mytrip');
+                }}
+                onOpenStationModal={() => {
+                  setShowSandboxModal(false);
+                  setShowStationModal(true);
+                }}
+                onSelectStation={(st) => setCurrentStop(st)}
+              />
+            </Suspense>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -127,3 +127,27 @@ export interface UserProfile {
   singaraCardBalance?: string;
 }
 
+export type Language = 'en' | 'ta';
+
+export type JourneyOptionType = 'fastest' | 'least_crowded' | 'fewest_transfers';
+
+export type TelemetryDataSource = 'live' | 'predicted' | 'demo' | 'closed';
+
+export interface JourneyOption {
+  type: JourneyOptionType;
+  title: string;
+  tamilTitle: string;
+  badge: string;
+  durationMinutes: number;
+  durationFormatted: string;
+  fare: string;
+  singaraFare: string;
+  stopsCount: number;
+  transferCount: number;
+  transferStationName?: string;
+  transferInstruction?: string;
+  train: BusTransit;
+  crowdLevel: CrowdLevel;
+  boardingProbability: number;
+  coachRecommendation: string;
+}

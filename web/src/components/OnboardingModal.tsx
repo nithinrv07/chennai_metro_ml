@@ -14,13 +14,15 @@ interface OnboardingModalProps {
   currentStop?: RouteStop;
   destination?: string;
   onComplete: (updatedProfile: UserProfile, selectedStop?: RouteStop, destination?: string) => void;
+  onSkip?: () => void;
 }
 
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({ 
   initialProfile, 
   currentStop = ALL_METRO_STATIONS[0],
   destination = 'Puratchi Thalaivar Dr. M.G.R Central',
-  onComplete 
+  onComplete,
+  onSkip,
 }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [persona, setPersona] = useState<CommuterPersona>(initialProfile.persona);
@@ -147,7 +149,19 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 : 'CMRL Platform Telemetry'}
             </span>
           </div>
-          <span className="text-xs text-gray-400 font-mono font-bold">Step {step} of 4</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-400 font-mono font-bold">Step {step} of 4</span>
+            {onSkip && (
+              <button
+                id="skip-onboarding-btn"
+                type="button"
+                onClick={onSkip}
+                className="text-xs font-bold text-[#0066B2] hover:text-blue-700 hover:underline px-2 py-1 rounded cursor-pointer"
+              >
+                Skip ➔
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="overflow-y-auto pr-1 flex-1">
