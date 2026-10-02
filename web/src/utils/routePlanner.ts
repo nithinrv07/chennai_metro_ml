@@ -211,8 +211,11 @@ export function calculateCommuterRoute(
     interchangeStation = stationMap.get(interchangeId);
 
     const interchangeShortName = interchangeStation?.name.includes('Central') ? 'Central' : interchangeStation?.name.split(' ')[0];
+    const firstLegDir = useAlandur
+      ? (blueIdx1 <= alandurBlueIdx ? 'Southbound to Alandur' : 'Northbound to Alandur')
+      : (blueIdx1 <= centralBlueIdx ? 'Southbound to Central' : 'Northbound to Central');
     lineSummary = `Blue Line ➔ Transfer at ${interchangeShortName} ➔ Green Line`;
-    directionLabel = `Transfer at ${interchangeShortName}`;
+    directionLabel = `${firstLegDir} (Transfer at ${interchangeShortName})`;
   }
   // Case 4: Origin on Green Line, Destination on Blue Line
   else if (greenIdx1 !== -1 && blueIdx2 !== -1) {
@@ -246,8 +249,11 @@ export function calculateCommuterRoute(
     interchangeStation = stationMap.get(interchangeId);
 
     const interchangeShortName = interchangeStation?.name.includes('Central') ? 'Central' : interchangeStation?.name.split(' ')[0];
+    const firstLegDir = useAlandur
+      ? (greenIdx1 <= alandurGreenIdx ? 'Southbound to Alandur' : 'Northbound to Alandur')
+      : (greenIdx1 <= centralGreenIdx ? 'Southbound to Central' : 'Northbound to Central');
     lineSummary = `Green Line ➔ Transfer at ${interchangeShortName} ➔ Blue Line`;
-    directionLabel = `Transfer at ${interchangeShortName}`;
+    directionLabel = `${firstLegDir} (Transfer at ${interchangeShortName})`;
   }
   // Fallback: Default directly to slice between origin and dest
   else {

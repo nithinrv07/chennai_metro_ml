@@ -1,5 +1,6 @@
 import { BusTransit, CrowdDNAPoint, DayPattern, MetroLineType, RouteStop } from '../types';
 import { INITIAL_BUSES, CROWD_DNA_WEEKLY } from '../data/transitData';
+import { BLUE_LINE_STATION_IDS, GREEN_LINE_STATION_IDS, findStationByNameOrId } from './routePlanner';
 
 export type TimeMode = 'live' | 'rush_morning' | 'optimal_morning' | 'afternoon_calm' | 'rush_evening' | 'night_shift' | 'custom';
 
@@ -139,6 +140,10 @@ export function evaluatePeakStatus(hours: number, minutes: number, dayName: DayO
     return { isPeak: true, peakLabel: 'Evening Rush Hour', peakBadgeType: 'peak' };
   }
 
+  if (timeDecimal < 5.0 || timeDecimal >= 23.0) {
+    return { isPeak: false, peakLabel: 'Metro Closed (05:00 - 23:00)', peakBadgeType: 'night' };
+  }
+
   if (timeDecimal >= 21.5 || timeDecimal < 6.0) {
     return { isPeak: false, peakLabel: 'Late Night / Early Rake', peakBadgeType: 'night' };
   }
@@ -153,8 +158,14 @@ export function getRecalculatedTrains(
   hours: number, 
   minutes: number, 
   dayName: DayOfWeek,
-  currentStop?: RouteStop
+  currentStop?: RouteStop,
+  destinationName?: string
 ): BusTransit[] {
+  // Chennai Metro operating hours: 05:00 to 23:00
+  if (hours < 5 || hours >= 23) {
+    return [];
+  }
+
   const { isPeak, peakBadgeType } = evaluatePeakStatus(hours, minutes, dayName);
   const stationName = currentStop?.name || 'Guindy Metro Station';
   const stationQueue = currentStop?.queueLength || 12;
@@ -278,6 +289,113 @@ export function getRecalculatedTrains(
       }
     }
 
+    let dest = bus.destination;
+    let plat = bus.platformNumber;
+    let coachReason = bus.coachReason;
+
+    if (destinationName) {
+      const origStop = findStationByNameOrId(stationName);
+      const destStop = findStationByNameOrId(destinationName);
+
+      const bOrig = BLUE_LINE_STATION_IDS.indexOf(origStop.id);
+      const bDest = BLUE_LINE_STATION_IDS.indexOf(destStop.id);
+      const gOrig = GREEN_LINE_STATION_IDS.indexOf(origStop.id);
+      const gDest = GREEN_LINE_STATION_IDS.indexOf(destStop.id);
+
+      const destShort = destStop.name
+        .replace(' Metro Station', '')
+        .replace(' Station', '')
+        .replace(' (MAA)', '')
+        .replace('Puratchi Thalaivar Dr. M.G.R ', '')
+        .trim();
+
+      if (bus.lineType === 'Blue Line') {
+        // Direct Blue Line
+        if (bOrig !== -1 && bDest !== -1) {
+          const isSouthbound = bOrig <= bDest;
+          if (isSouthbound) {
+            const platTarget = (bDest === 25 || destShort.toLowerCase().includes('airport')) ? 'Airport' : destShort;
+            dest = destStop.name;
+            plat = `Platform 1 (Southbound towards ${platTarget})`;
+            coachReason = `Direct Southbound Blue Line train towards ${destShort}.`;
+          } else {
+            const platTarget = (bDest < 12) ? 'Wimco Nagar' : 'Central';
+            dest = destStop.name;
+            plat = `Platform 2 (Northbound towards ${platTarget})`;
+            coachReason = `Direct Northbound Blue Line train towards ${destShort}.`;
+          }
+        } 
+        // Origin Blue Line, Destination Green Line (Transfer required)
+        else if (bOrig !== -1 && gDest !== -1) {
+          const centralIdx = BLUE_LINE_STATION_IDS.indexOf('stop-central');
+          const alandurIdx = BLUE_LINE_STATION_IDS.indexOf('stop-alandur');
+          const stopsViaCentral = Math.abs(bOrig - centralIdx) + Math.abs(gDest - 0);
+          const stopsViaAlandur = Math.abs(bOrig - alandurIdx) + Math.abs(gDest - 14);
+
+          if (stopsViaCentral <= stopsViaAlandur) {
+            // Transfer at Central
+            if (bOrig <= centralIdx) {
+              dest = `Puratchi Thalaivar Dr. M.G.R Central (Transfer for ${destShort})`;
+              plat = 'Platform 1 (Southbound towards Central)';
+              coachReason = `Board Southbound to Central. Transfer at Central Platform 1 for Green Line to ${destShort}.`;
+            } else {
+              dest = `Puratchi Thalaivar Dr. M.G.R Central (Transfer for ${destShort})`;
+              plat = 'Platform 2 (Northbound towards Central)';
+              coachReason = `Board Northbound to Central. Transfer at Central Platform 1 for Green Line to ${destShort}.`;
+            }
+          } else {
+            // Transfer at Alandur
+            if (bOrig <= alandurIdx) {
+              dest = `Alandur Interchange Station (Transfer for ${destShort})`;
+              plat = 'Platform 1 (Southbound towards Alandur)';
+              coachReason = `Board Southbound to Alandur. Transfer at Alandur Level 2 for Green Line to ${destShort}.`;
+            } else {
+              dest = `Alandur Interchange Station (Transfer for ${destShort})`;
+              plat = 'Platform 2 (Northbound towards Alandur)';
+              coachReason = `Board Northbound to Alandur. Transfer at Alandur Level 2 for Green Line to ${destShort}.`;
+            }
+          }
+        }
+      } else if (bus.lineType === 'Green Line') {
+        // Direct Green Line
+        if (gOrig !== -1 && gDest !== -1) {
+          const isSouthbound = gOrig <= gDest;
+          if (isSouthbound) {
+            dest = destStop.name;
+            plat = 'Platform 1 (Southbound towards St. Thomas Mount)';
+            coachReason = `Direct Green Line train Southbound towards ${destShort}.`;
+          } else {
+            dest = destStop.name;
+            plat = 'Platform 2 (Northbound towards Central)';
+            coachReason = `Direct Green Line train Northbound towards ${destShort} / Central.`;
+          }
+        }
+        // Origin Green Line, Destination Blue Line (Transfer required)
+        else if (gOrig !== -1 && bDest !== -1) {
+          const stopsViaCentral = Math.abs(gOrig - 0) + Math.abs(bDest - 12);
+          const stopsViaAlandur = Math.abs(gOrig - 14) + Math.abs(bDest - 22);
+
+          if (stopsViaCentral <= stopsViaAlandur) {
+            // Transfer at Central: Central is index 0 on Green Line
+            dest = `Puratchi Thalaivar Dr. M.G.R Central (Transfer for ${destShort})`;
+            plat = 'Platform 2 (Northbound towards Central)';
+            coachReason = `Board Northbound Green Line to Central. Transfer at Central Underground for Blue Line to ${destShort}.`;
+          } else {
+            // Transfer at Alandur (index 14)
+            if (gOrig <= 14) {
+              dest = `Alandur Interchange Station (Transfer for ${destShort})`;
+              plat = 'Platform 1 (Southbound towards Alandur)';
+              coachReason = `Board Southbound Green Line to Alandur. Transfer at Alandur Level 1 for Blue Line to ${destShort}.`;
+            } else {
+              dest = `Alandur Interchange Station (Transfer for ${destShort})`;
+              plat = 'Platform 2 (Northbound towards Alandur)';
+              coachReason = `Board Northbound Green Line to Alandur. Transfer at Alandur Level 1 for Blue Line to ${destShort}.`;
+            }
+          }
+        }
+      }
+    }
+
     const updatedFactors = [
       { label: 'Train Capacity', impact: cap > 75 ? 'negative' : 'positive', detail: `${seats} unallocated seats (${cap}% load)`, points: cap > 75 ? -15 : +22 },
       { label: 'Platform Clearance', impact: 'positive', detail: `${stationBoardingRate}% clearance at ${stationName.replace(' Metro Station', '').replace(' Station', '')}`, points: Math.round(stationBoardingRate * 0.28) },
@@ -288,6 +406,9 @@ export function getRecalculatedTrains(
 
     return {
       ...bus,
+      destination: dest,
+      platformNumber: plat,
+      coachReason,
       nextStop: stationName,
       capacityPercentage: cap,
       boardingProbability: prob,

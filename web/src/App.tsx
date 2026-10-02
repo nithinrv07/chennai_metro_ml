@@ -87,7 +87,7 @@ export default function App() {
   // Dynamically recalculate train occupancy, headways & boarding odds on time/station change
   useEffect(() => {
     // 1. Instant local optimistic calculation
-    const updated = getRecalculatedTrains(activeHours, activeMinutes, activeDay, currentStop);
+    const updated = getRecalculatedTrains(activeHours, activeMinutes, activeDay, currentStop, selectedDestination);
     setBuses(updated);
 
     // 2. Fetch live ML inference from Scikit-Learn backend
@@ -102,12 +102,20 @@ export default function App() {
       isWeekend,
       isPeak
     ).then((mlResult) => {
-      if (!isCancelled && mlResult?.trains && mlResult.trains.length > 0) {
-        const enriched = mlResult.trains.map((t) => ({
-          ...t,
-          realArrivalTime: t.realArrivalTime || computeRealArrivalTime(activeHours, activeMinutes, t.arrivalMinutes),
-        }));
-        setBuses(enriched);
+      if (!isCancelled) {
+        if (
+          mlResult?.service_status === 'Closed' || 
+          mlResult?.service_status === 'Invalid Station' || 
+          (mlResult && Array.isArray(mlResult.trains) && mlResult.trains.length === 0)
+        ) {
+          setBuses([]);
+        } else if (mlResult?.trains && mlResult.trains.length > 0) {
+          const enriched = mlResult.trains.map((t) => ({
+            ...t,
+            realArrivalTime: t.realArrivalTime || computeRealArrivalTime(activeHours, activeMinutes, t.arrivalMinutes),
+          }));
+          setBuses(enriched);
+        }
       }
     });
 
@@ -358,6 +366,7 @@ export default function App() {
       {completedTripBus && (
         <TripCompletedModal
           bus={completedTripBus}
+          currentStop={currentStop}
           profile={profile}
           onClose={() => setCompletedTripBus(null)}
           onFeedbackSubmitted={(updated) => {

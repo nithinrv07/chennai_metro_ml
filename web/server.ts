@@ -245,192 +245,374 @@ app.post('/api/ml/predict-trains', async (req, res) => {
     return `${h12 < 10 ? '0' + h12 : h12}:${m < 10 ? '0' + m : m} ${period}`;
   };
 
-  const destLower = String(destination).toLowerCase();
-  const isAirportDest = destLower.includes('airport') || destLower.includes('maa');
-  const isGreenLineOrigin = stLower.includes('egmore') || stLower.includes('koyambedu') || stLower.includes('vadapalani') || stLower.includes('ashok nagar') || stLower.includes('anna nagar');
+  const BLUE_LINE = [
+    'Wimco Nagar Depot', 'Wimco Nagar', 'Tiruvottriyur', 'Tiruvottriyur Theradi', 'Kaladipet',
+    'Tollgate', 'New Washermanpet', 'Tondiarpet', 'Sir Theagaraya College', 'Washermenpet Metro Station',
+    'Mannadi Metro Station', 'High Court Metro Station', 'Puratchi Thalaivar Dr. M.G.R Central',
+    'Government Estate Metro Station', 'LIC Metro Station', 'Thousand Lights Metro Station',
+    'AG-DMS Metro Station', 'Teynampet Metro Station', 'Nandanam Metro Station', 'Saidapet Metro Station',
+    'Little Mount Metro Station', 'Guindy Metro Station', 'Alandur Interchange Station',
+    'Nanganallur Road Station', 'Meenambakkam Metro Station', 'Chennai International Airport (MAA)'
+  ];
+
+  const GREEN_LINE = [
+    'Puratchi Thalaivar Dr. M.G.R Central', 'Egmore Metro Station', 'Nehru Park', 'Kilpauk',
+    'Pachaiyappas', 'Shenoy Nagar', 'Anna Nagar East', 'Anna Nagar Tower Station', 'Thirumangalam',
+    'Koyambedu CMBT Station', 'Arumbakkam', 'Vadapalani Metro Station', 'Ashok Nagar Metro Station',
+    'Ekkattuthangal', 'Alandur Interchange Station', 'St. Thomas Mount Metro Station'
+  ];
+
+  const resolveSt = (name: string): string => {
+    const n = String(name || '').toLowerCase();
+    if (n.includes('tidel') || n.includes('omr') || n.includes('iit') || n.includes('anna university')) return 'Guindy Metro Station';
+    if (n.includes('marina') || n.includes('govt estate') || n.includes('government estate')) return 'Government Estate Metro Station';
+    if (n.includes('airport') || n.includes('maa')) return 'Chennai International Airport (MAA)';
+    if (n.includes('central') || n.includes('mgr') || n.includes('puratchi thalaivar')) return 'Puratchi Thalaivar Dr. M.G.R Central';
+    if (n.includes('egmore')) return 'Egmore Metro Station';
+    if (n.includes('alandur')) return 'Alandur Interchange Station';
+    if (n.includes('koyambedu') || n.includes('cmbt')) return 'Koyambedu CMBT Station';
+    if (n.includes('st. thomas mount') || n.includes('thomas mount')) return 'St. Thomas Mount Metro Station';
+    if (n.includes('guindy')) return 'Guindy Metro Station';
+    if (n.includes('saidapet')) return 'Saidapet Metro Station';
+    if (n.includes('anna nagar tower')) return 'Anna Nagar Tower Station';
+    if (n.includes('anna nagar east')) return 'Anna Nagar East';
+    if (n.includes('anna nagar')) return 'Anna Nagar Tower Station';
+    if (n.includes('vadapalani')) return 'Vadapalani Metro Station';
+    if (n.includes('ashok nagar')) return 'Ashok Nagar Metro Station';
+    if (n.includes('thousand lights')) return 'Thousand Lights Metro Station';
+    if (n.includes('lic')) return 'LIC Metro Station';
+    if (n.includes('wimco nagar depot') || n.includes('north depot')) return 'Wimco Nagar Depot Station';
+    if (n.includes('wimco nagar')) return 'Wimco Nagar';
+    const foundBlue = BLUE_LINE.find(s => s.toLowerCase().includes(n));
+    if (foundBlue) return foundBlue;
+    const foundGreen = GREEN_LINE.find(s => s.toLowerCase().includes(n));
+    if (foundGreen) return foundGreen;
+    return 'Guindy Metro Station';
+  };
+
+  const origCanon = resolveSt(station_name);
+  const destCanon = resolveSt(destination);
+
+  const destShort = destCanon
+    .replace(' Metro Station', '')
+    .replace(' Station', '')
+    .replace(' (MAA)', '')
+    .replace('Puratchi Thalaivar Dr. M.G.R ', '')
+    .trim();
+
+  const bOrig = BLUE_LINE.indexOf(origCanon);
+  const gOrig = GREEN_LINE.indexOf(origCanon);
+  const bDest = BLUE_LINE.indexOf(destCanon);
+  const gDest = GREEN_LINE.indexOf(destCanon);
+
+  let isBlueLine = true;
+  let isSouthbound = true;
+  let transferNotice = '';
+
+  if (bOrig !== -1 && bDest !== -1 && (gOrig === -1 || gDest === -1 || (bOrig === 12 && bDest > 0) || (bOrig === 22 && bDest === 25))) {
+    isBlueLine = true;
+    isSouthbound = bOrig <= bDest;
+  } else if (gOrig !== -1 && gDest !== -1) {
+    isBlueLine = false;
+    isSouthbound = gOrig <= gDest;
+  } else if (bOrig !== -1 && gDest !== -1) {
+    const stopsViaCentral = Math.abs(bOrig - 12) + Math.abs(gDest - 0);
+    const stopsViaAlandur = Math.abs(bOrig - 22) + Math.abs(gDest - 14);
+    if (stopsViaCentral <= stopsViaAlandur) {
+      if (bOrig === 12) {
+        isBlueLine = false;
+        isSouthbound = 0 <= gDest;
+      } else {
+        isBlueLine = true;
+        isSouthbound = bOrig < 12;
+        transferNotice = `Transfer at Central Platform 1 for Green Line to ${destShort}`;
+      }
+    } else {
+      if (bOrig === 22) {
+        isBlueLine = false;
+        isSouthbound = 14 <= gDest;
+      } else {
+        isBlueLine = true;
+        isSouthbound = bOrig < 22;
+        transferNotice = `Transfer at Alandur Level 2 for Green Line to ${destShort}`;
+      }
+    }
+  } else if (gOrig !== -1 && bDest !== -1) {
+    const stopsViaCentral = Math.abs(gOrig - 0) + Math.abs(bDest - 12);
+    const stopsViaAlandur = Math.abs(gOrig - 14) + Math.abs(bDest - 22);
+    if (stopsViaCentral <= stopsViaAlandur) {
+      if (gOrig === 0) {
+        isBlueLine = true;
+        isSouthbound = 12 <= bDest;
+      } else {
+        isBlueLine = false;
+        isSouthbound = false;
+        transferNotice = `Transfer at Central Underground for Blue Line to ${destShort}`;
+      }
+    } else {
+      if (gOrig === 14) {
+        isBlueLine = true;
+        isSouthbound = 22 <= bDest;
+      } else {
+        isBlueLine = false;
+        isSouthbound = gOrig < 14;
+        transferNotice = `Transfer at Alandur Level 1 for Blue Line to ${destShort}`;
+      }
+    }
+  }
 
   let trains = [];
-  if (isGreenLineOrigin) {
-    trains = [
-      {
-        id: 'train-gl-208',
-        routeNumber: 'GL-208',
-        name: 'Green Line • Central Direct',
-        lineType: 'Green Line',
-        lineColor: 'green',
-        destination: 'Puratchi Thalaivar Dr. M.G.R Central',
-        currentLocation: `Approaching ${station_name}`,
-        nextStop: station_name,
-        arrivalMinutes: 4,
-        realArrivalTime: computeTimeStr(4),
-        historicalSuccessRate: 88,
-        boardingProbability: isPeak ? 58 : 92,
-        crowdLevel: isPeak ? 'High' : 'Low',
-        capacityPercentage: isPeak ? 88 : 42,
-        seatsAvailable: isPeak ? 6 : 38,
-        confidenceScore: 91.0,
-        totalCapacity: 240,
-        fare: '₹40',
-        acStatus: 'Full AC',
-        doorsCount: 4,
-        platformNumber: 'Platform 2 (Northbound to Central)',
-        wheelchairAccessible: true,
-        crowdBreakdown: { front: isPeak ? 86 : 30, middle: isPeak ? 94 : 45, rear: isPeak ? 74 : 26 },
-        coachBreakdown: { front: isPeak ? 86 : 30, middle: isPeak ? 94 : 45, rear: isPeak ? 74 : 26 },
-        isRecommended: true,
-        coachReason: 'Green Line Northbound to Central.',
-      },
-      {
-        id: 'train-gl-214',
-        routeNumber: 'GL-214',
-        name: 'Green Line • St. Thomas Mount Direct',
-        lineType: 'Green Line',
-        lineColor: 'green',
-        destination: 'St. Thomas Mount Metro Station',
-        currentLocation: 'Shenoy Nagar Corridor',
-        nextStop: station_name,
-        arrivalMinutes: 8,
-        realArrivalTime: computeTimeStr(8),
-        historicalSuccessRate: 86,
-        boardingProbability: isPeak ? 48 : 88,
-        crowdLevel: isPeak ? 'High' : 'Moderate',
-        capacityPercentage: isPeak ? 82 : 46,
-        seatsAvailable: isPeak ? 12 : 34,
-        confidenceScore: 89.0,
-        totalCapacity: 240,
-        fare: '₹30',
-        acStatus: 'Full AC',
-        doorsCount: 4,
-        platformNumber: 'Platform 1 (Southbound)',
-        wheelchairAccessible: true,
-        crowdBreakdown: { front: isPeak ? 78 : 28, middle: isPeak ? 88 : 40, rear: isPeak ? 68 : 22 },
-        coachBreakdown: { front: isPeak ? 78 : 28, middle: isPeak ? 88 : 40, rear: isPeak ? 68 : 22 },
-        isRecommended: false,
-        coachReason: 'Green Line Southbound via CMBT & Alandur.',
-      },
-    ];
-  } else if (isAirportDest) {
-    trains = [
-      {
-        id: 'train-bl-101',
-        routeNumber: 'BL-101',
-        name: 'Blue Line • Airport Express (Southbound)',
-        lineType: 'Blue Line',
-        lineColor: 'blue',
-        destination: 'Chennai International Airport (MAA)',
-        currentLocation: `Approaching ${station_name} on Track 1`,
-        nextStop: station_name,
-        arrivalMinutes: 2,
-        realArrivalTime: computeTimeStr(2),
-        historicalSuccessRate: 95,
-        boardingProbability: isPeak ? 76 : 96,
-        crowdLevel: isPeak ? 'Moderate' : 'Low',
-        capacityPercentage: isPeak ? 72 : 32,
-        seatsAvailable: isPeak ? 24 : 50,
-        confidenceScore: 95.0,
-        totalCapacity: 240,
-        fare: '₹40',
-        acStatus: 'Full AC',
-        doorsCount: 4,
-        platformNumber: 'Platform 1 (Southbound to Airport)',
-        wheelchairAccessible: true,
-        crowdBreakdown: { front: isPeak ? 64 : 20, middle: isPeak ? 80 : 32, rear: isPeak ? 44 : 16 },
-        coachBreakdown: { front: isPeak ? 64 : 20, middle: isPeak ? 80 : 32, rear: isPeak ? 44 : 16 },
-        isRecommended: true,
-        coachReason: 'Direct Southbound train to Airport. Rear DMC2 offers optimal seat clearance.',
-      },
-      {
-        id: 'train-bl-103',
-        routeNumber: 'BL-103',
-        name: 'Blue Line • Airport Rapid (Southbound)',
-        lineType: 'Blue Line',
-        lineColor: 'blue',
-        destination: 'Chennai International Airport (MAA)',
-        currentLocation: 'Saidapet Overhead Corridor',
-        nextStop: station_name,
-        arrivalMinutes: 7,
-        realArrivalTime: computeTimeStr(7),
-        historicalSuccessRate: 92,
-        boardingProbability: isPeak ? 88 : 98,
-        crowdLevel: 'Low',
-        capacityPercentage: isPeak ? 45 : 22,
-        seatsAvailable: isPeak ? 42 : 56,
-        confidenceScore: 93.5,
-        totalCapacity: 240,
-        fare: '₹40',
-        acStatus: 'Full AC',
-        doorsCount: 4,
-        platformNumber: 'Platform 1 (Southbound to Airport)',
-        wheelchairAccessible: true,
-        crowdBreakdown: { front: 22, middle: 34, rear: 18 },
-        coachBreakdown: { front: 22, middle: 34, rear: 18 },
-        isRecommended: false,
-        coachReason: 'High seating availability in Coach 4.',
-      },
-    ];
+  if (isBlueLine) {
+    if (isSouthbound) {
+      const platTarget = (bDest === 12 || destShort === 'Central') ? 'Central / Airport' : 'Airport';
+      const transferHub = transferNotice.includes('Central') ? 'Puratchi Thalaivar Dr. M.G.R Central' : 'Alandur Interchange Station';
+      const trainDest = transferNotice ? `${transferHub} (${transferNotice})` : (destCanon || 'Chennai International Airport (MAA)');
+      trains = [
+        {
+          id: 'train-bl-101',
+          routeNumber: 'BL-101',
+          name: `Blue Line • ${platTarget} Express (Southbound)`,
+          lineType: 'Blue Line',
+          lineColor: 'blue',
+          destination: trainDest,
+          currentLocation: `Approaching ${origCanon} on Track 1`,
+          nextStop: origCanon,
+          arrivalMinutes: 2,
+          realArrivalTime: computeTimeStr(2),
+          historicalSuccessRate: 95,
+          boardingProbability: isPeak ? 76 : 96,
+          crowdLevel: isPeak ? 'Moderate' : 'Low',
+          capacityPercentage: isPeak ? 72 : 32,
+          seatsAvailable: isPeak ? 24 : 50,
+          confidenceScore: 95.0,
+          totalCapacity: 240,
+          fare: '₹40',
+          acStatus: 'Full AC',
+          doorsCount: 4,
+          platformNumber: `Platform 1 (Southbound towards ${platTarget})`,
+          wheelchairAccessible: true,
+          crowdBreakdown: { front: isPeak ? 64 : 20, middle: isPeak ? 80 : 32, rear: isPeak ? 44 : 16 },
+          coachBreakdown: { front: isPeak ? 64 : 20, middle: isPeak ? 80 : 32, rear: isPeak ? 44 : 16 },
+          isRecommended: true,
+          coachReason: `Direct Southbound train towards ${destShort}. ${transferNotice}`.trim(),
+        },
+        {
+          id: 'train-bl-103',
+          routeNumber: 'BL-103',
+          name: `Blue Line • ${platTarget} Rapid (Southbound)`,
+          lineType: 'Blue Line',
+          lineColor: 'blue',
+          destination: trainDest,
+          currentLocation: 'Saidapet Overhead Corridor',
+          nextStop: origCanon,
+          arrivalMinutes: 7,
+          realArrivalTime: computeTimeStr(7),
+          historicalSuccessRate: 92,
+          boardingProbability: isPeak ? 88 : 98,
+          crowdLevel: 'Low',
+          capacityPercentage: isPeak ? 45 : 22,
+          seatsAvailable: isPeak ? 42 : 56,
+          confidenceScore: 93.5,
+          totalCapacity: 240,
+          fare: '₹40',
+          acStatus: 'Full AC',
+          doorsCount: 4,
+          platformNumber: `Platform 1 (Southbound towards ${platTarget})`,
+          wheelchairAccessible: true,
+          crowdBreakdown: { front: 22, middle: 34, rear: 18 },
+          coachBreakdown: { front: 22, middle: 34, rear: 18 },
+          isRecommended: false,
+          coachReason: `Follow-up Southbound rake with high seating availability. ${transferNotice}`.trim(),
+        },
+      ];
+    } else {
+      const isWimcoBound = bDest < 12 && bDest !== -1;
+      const platTarget = isWimcoBound ? 'Wimco Nagar' : 'Central';
+      const transferHub = transferNotice.includes('Central') ? 'Puratchi Thalaivar Dr. M.G.R Central' : 'Alandur Interchange Station';
+      const trainDest = transferNotice ? `${transferHub} (${transferNotice})` : (destCanon || 'Puratchi Thalaivar Dr. M.G.R Central');
+      trains = [
+        {
+          id: 'train-bl-104',
+          routeNumber: 'BL-104',
+          name: `Blue Line • ${platTarget} Express (Northbound)`,
+          lineType: 'Blue Line',
+          lineColor: 'blue',
+          destination: trainDest,
+          currentLocation: `Approaching ${origCanon} on Track 2`,
+          nextStop: origCanon,
+          arrivalMinutes: 2,
+          realArrivalTime: computeTimeStr(2),
+          historicalSuccessRate: 93,
+          boardingProbability: isPeak ? 72 : 96,
+          crowdLevel: isPeak ? 'Moderate' : 'Low',
+          capacityPercentage: isPeak ? 76 : 35,
+          seatsAvailable: isPeak ? 22 : 48,
+          confidenceScore: 94.2,
+          totalCapacity: 240,
+          fare: '₹40',
+          acStatus: 'Full AC',
+          doorsCount: 4,
+          platformNumber: `Platform 2 (Northbound towards ${platTarget})`,
+          wheelchairAccessible: true,
+          crowdBreakdown: { front: isPeak ? 68 : 22, middle: isPeak ? 84 : 35, rear: isPeak ? 48 : 18 },
+          coachBreakdown: { front: isPeak ? 68 : 22, middle: isPeak ? 84 : 35, rear: isPeak ? 48 : 18 },
+          isRecommended: true,
+          coachReason: `Northbound train towards ${platTarget}. ${transferNotice}`.trim(),
+        },
+        {
+          id: 'train-bl-112',
+          routeNumber: 'BL-112',
+          name: 'Blue Line • Wimco Nagar Rapid (Northbound)',
+          lineType: 'Blue Line',
+          lineColor: 'blue',
+          destination: 'Wimco Nagar Depot Station',
+          currentLocation: 'Approaching Station',
+          nextStop: origCanon,
+          arrivalMinutes: 9,
+          realArrivalTime: computeTimeStr(9),
+          historicalSuccessRate: 97,
+          boardingProbability: 97,
+          crowdLevel: 'Low',
+          capacityPercentage: 25,
+          seatsAvailable: 52,
+          confidenceScore: 96.8,
+          totalCapacity: 240,
+          fare: '₹50',
+          acStatus: 'Full AC',
+          doorsCount: 4,
+          platformNumber: 'Platform 2 (Northbound towards Wimco Nagar)',
+          wheelchairAccessible: true,
+          crowdBreakdown: { front: 18, middle: 28, rear: 14 },
+          coachBreakdown: { front: 18, middle: 28, rear: 14 },
+          isRecommended: false,
+          coachReason: 'High seating odds in Coach 4 (Rear DMC2).',
+        },
+      ];
+    }
   } else {
-    // Default Northbound (Central / Egmore via Central)
-    const isEgmore = destLower.includes('egmore');
-    trains = [
-      {
-        id: 'train-bl-104',
-        routeNumber: 'BL-104',
-        name: 'Blue Line • Chennai Central Express',
-        lineType: 'Blue Line',
-        lineColor: 'blue',
-        destination: isEgmore ? 'Puratchi Thalaivar Dr. M.G.R Central (Transfer for Egmore)' : 'Puratchi Thalaivar Dr. M.G.R Central',
-        currentLocation: `Approaching ${station_name} on Track 2`,
-        nextStop: station_name,
-        arrivalMinutes: 2,
-        realArrivalTime: computeTimeStr(2),
-        historicalSuccessRate: 93,
-        boardingProbability: isPeak ? 72 : 96,
-        crowdLevel: isPeak ? 'Moderate' : 'Low',
-        capacityPercentage: isPeak ? 76 : 35,
-        seatsAvailable: isPeak ? 22 : 48,
-        confidenceScore: 94.2,
-        totalCapacity: 240,
-        fare: '₹40',
-        acStatus: 'Full AC',
-        doorsCount: 4,
-        platformNumber: 'Platform 2 (Northbound to Central)',
-        wheelchairAccessible: true,
-        crowdBreakdown: { front: isPeak ? 68 : 22, middle: isPeak ? 84 : 35, rear: isPeak ? 48 : 18 },
-        coachBreakdown: { front: isPeak ? 68 : 22, middle: isPeak ? 84 : 35, rear: isPeak ? 48 : 18 },
-        isRecommended: true,
-        coachReason: isEgmore
-          ? 'Board BL-104 Northbound to Central; transfer at Central to Green Line for 1 stop to Egmore.'
-          : 'Optimal seat clearance in Coach 4 (Rear DMC2).',
-      },
-      {
-        id: 'train-bl-112',
-        routeNumber: 'BL-112',
-        name: 'Blue Line • Wimco Nagar Rapid',
-        lineType: 'Blue Line',
-        lineColor: 'blue',
-        destination: 'Wimco Nagar North Depot',
-        currentLocation: 'Airport Station (Originating)',
-        nextStop: 'Meenambakkam',
-        arrivalMinutes: 9,
-        realArrivalTime: computeTimeStr(9),
-        historicalSuccessRate: 97,
-        boardingProbability: 97,
-        crowdLevel: 'Low',
-        capacityPercentage: 25,
-        seatsAvailable: 52,
-        confidenceScore: 96.8,
-        totalCapacity: 240,
-        fare: '₹50',
-        acStatus: 'Full AC',
-        doorsCount: 4,
-        platformNumber: 'Platform 2 (Northbound)',
-        wheelchairAccessible: true,
-        crowdBreakdown: { front: 18, middle: 28, rear: 14 },
-        coachBreakdown: { front: 18, middle: 28, rear: 14 },
-        isRecommended: false,
-        coachReason: 'Originating empty rake from Airport with 50+ open seats.',
-      },
-    ];
+    // Green Line
+    if (isSouthbound) {
+      const transferHub = transferNotice.includes('Central') ? 'Puratchi Thalaivar Dr. M.G.R Central' : 'Alandur Interchange Station';
+      const trainDest = transferNotice ? `${transferHub} (${transferNotice})` : (destCanon || 'St. Thomas Mount Metro Station');
+      trains = [
+        {
+          id: 'train-gl-214',
+          routeNumber: 'GL-214',
+          name: transferNotice ? 'Green Line • Alandur Express (Southbound)' : `Green Line • ${destShort} Direct (Southbound)`,
+          lineType: 'Green Line',
+          lineColor: 'green',
+          destination: trainDest,
+          currentLocation: `Approaching ${origCanon} on Track 1`,
+          nextStop: origCanon,
+          arrivalMinutes: 3,
+          realArrivalTime: computeTimeStr(3),
+          historicalSuccessRate: 86,
+          boardingProbability: isPeak ? 48 : 88,
+          crowdLevel: isPeak ? 'High' : 'Moderate',
+          capacityPercentage: isPeak ? 82 : 46,
+          seatsAvailable: isPeak ? 12 : 34,
+          confidenceScore: 89.0,
+          totalCapacity: 240,
+          fare: '₹30',
+          acStatus: 'Full AC',
+          doorsCount: 4,
+          platformNumber: transferNotice ? 'Platform 1 (Southbound towards Alandur)' : 'Platform 1 (Southbound towards St. Thomas Mount)',
+          wheelchairAccessible: true,
+          crowdBreakdown: { front: isPeak ? 78 : 28, middle: isPeak ? 88 : 40, rear: isPeak ? 68 : 22 },
+          coachBreakdown: { front: isPeak ? 78 : 28, middle: isPeak ? 88 : 40, rear: isPeak ? 68 : 22 },
+          isRecommended: true,
+          coachReason: `Direct Green Line train Southbound towards ${destShort}. ${transferNotice}`.trim(),
+        },
+        {
+          id: 'train-gl-206',
+          routeNumber: 'GL-206',
+          name: 'Green Line • Koyambedu Shuttle',
+          lineType: 'Green Line',
+          lineColor: 'green',
+          destination: 'Koyambedu CMBT Station',
+          currentLocation: 'Shenoy Nagar Corridor',
+          nextStop: origCanon,
+          arrivalMinutes: 8,
+          realArrivalTime: computeTimeStr(8),
+          historicalSuccessRate: 90,
+          boardingProbability: isPeak ? 58 : 92,
+          crowdLevel: isPeak ? 'Moderate' : 'Low',
+          capacityPercentage: isPeak ? 68 : 35,
+          seatsAvailable: isPeak ? 22 : 44,
+          confidenceScore: 91.2,
+          totalCapacity: 240,
+          fare: '₹30',
+          acStatus: 'Full AC',
+          doorsCount: 4,
+          platformNumber: 'Platform 1 (Southbound towards Koyambedu)',
+          wheelchairAccessible: true,
+          crowdBreakdown: { front: 32, middle: 48, rear: 24 },
+          coachBreakdown: { front: 32, middle: 48, rear: 24 },
+          isRecommended: false,
+          coachReason: 'High seat availability heading South towards CMBT.',
+        },
+      ];
+    } else {
+      const trainDest = transferNotice ? `Puratchi Thalaivar Dr. M.G.R Central (${transferNotice})` : 'Puratchi Thalaivar Dr. M.G.R Central';
+      trains = [
+        {
+          id: 'train-gl-208',
+          routeNumber: 'GL-208',
+          name: `Green Line • ${destShort} / Central Express (Northbound)`,
+          lineType: 'Green Line',
+          lineColor: 'green',
+          destination: trainDest,
+          currentLocation: `Approaching ${origCanon} on Track 2`,
+          nextStop: origCanon,
+          arrivalMinutes: 4,
+          realArrivalTime: computeTimeStr(4),
+          historicalSuccessRate: 88,
+          boardingProbability: isPeak ? 58 : 92,
+          crowdLevel: isPeak ? 'Moderate' : 'Low',
+          capacityPercentage: isPeak ? 62 : 38,
+          seatsAvailable: isPeak ? 26 : 46,
+          confidenceScore: 92.4,
+          totalCapacity: 240,
+          fare: '₹40',
+          acStatus: 'Full AC',
+          doorsCount: 4,
+          platformNumber: 'Platform 2 (Northbound towards Central)',
+          wheelchairAccessible: true,
+          crowdBreakdown: { front: 35, middle: 50, rear: 30 },
+          coachBreakdown: { front: 35, middle: 50, rear: 30 },
+          isRecommended: true,
+          coachReason: `Green Line Northbound towards ${destShort} and Central. ${transferNotice}`.trim(),
+        },
+        {
+          id: 'train-gl-202',
+          routeNumber: 'GL-202',
+          name: 'Green Line • Central Express (Northbound)',
+          lineType: 'Green Line',
+          lineColor: 'green',
+          destination: trainDest,
+          currentLocation: 'In-transit Corridor',
+          nextStop: origCanon,
+          arrivalMinutes: 9,
+          realArrivalTime: computeTimeStr(9),
+          historicalSuccessRate: 94,
+          boardingProbability: isPeak ? 82 : 96,
+          crowdLevel: 'Low',
+          capacityPercentage: 42,
+          seatsAvailable: 38,
+          confidenceScore: 94.0,
+          totalCapacity: 240,
+          fare: '₹40',
+          acStatus: 'Full AC',
+          doorsCount: 4,
+          platformNumber: 'Platform 2 (Northbound towards Central)',
+          wheelchairAccessible: true,
+          crowdBreakdown: { front: 22, middle: 32, rear: 18 },
+          coachBreakdown: { front: 22, middle: 32, rear: 18 },
+          isRecommended: false,
+          coachReason: 'Direct Central service with 38 open seats.',
+        },
+      ];
+    }
   }
 
   return res.json({
@@ -598,9 +780,23 @@ Provide the best actionable CMRL Smart Coach decision recommendation as strict J
 // Trip Feedback & Model Training Ingestion Loop
 app.post('/api/trip/submit-feedback', async (req, res) => {
   try {
-    const { tripId, busRoute, predictedProbability, actualCrowd, boardingSucceeded, userWaitMinutes, seatSecured, comment } = req.body;
+    const {
+      tripId,
+      busRoute,
+      station_name,
+      stationName,
+      station,
+      predictedProbability,
+      actualCrowd,
+      boardingSucceeded,
+      userWaitMinutes,
+      seatSecured,
+      comment
+    } = req.body;
 
-    // Try submitting to Python ML feedback store first
+    const resolvedStation = station_name || stationName || station || 'Guindy Metro Station';
+
+    // Submit to Python ML feedback store
     try {
       const mlFeedbackRes = await fetch(`${ML_SERVICE_URL}/api/ml/feedback`, {
         method: 'POST',
@@ -608,6 +804,7 @@ app.post('/api/trip/submit-feedback', async (req, res) => {
         body: JSON.stringify({
           tripId,
           busRoute,
+          station_name: resolvedStation,
           predictedProbability,
           actualCrowd,
           boardingSucceeded,
@@ -621,39 +818,35 @@ app.post('/api/trip/submit-feedback', async (req, res) => {
       if (mlFeedbackRes.ok) {
         const mlResult = await mlFeedbackRes.json();
         return res.json(mlResult);
+      } else {
+        const errText = await mlFeedbackRes.text();
+        let errorDetail = errText;
+        try {
+          const parsed = JSON.parse(errText);
+          errorDetail = parsed.detail || parsed.message || parsed.error || errText;
+        } catch (_) {}
+        console.warn('[ML Gateway] ML service feedback error:', errorDetail);
+        return res.status(mlFeedbackRes.status).json({
+          success: false,
+          error: `ML Retraining Failed: ${errorDetail}`,
+          modelStats: {
+            activeLearningWeightsUpdated: false
+          }
+        });
       }
     } catch (e: any) {
-      console.warn('[ML Gateway] Notice: Forwarding feedback to local store (Python service offline):', e.message);
+      console.warn('[ML Gateway] Python ML service unreachable for feedback:', e.message);
+      return res.status(503).json({
+        success: false,
+        error: 'ML service is currently offline. Model weights were not updated.',
+        modelStats: {
+          activeLearningWeightsUpdated: false
+        }
+      });
     }
-
-    const feedbackEntry = {
-      id: `fb-${Date.now()}`,
-      tripId: tripId || `trip-${Date.now()}`,
-      busRoute: busRoute || 'BL-104',
-      predictedProbability: Number(predictedProbability) || 87,
-      actualCrowd: actualCrowd || 'Moderate',
-      boardingSucceeded: Boolean(boardingSucceeded),
-      timestamp: new Date().toISOString(),
-    };
-
-    feedbackLogs.push(feedbackEntry);
-    const totalLogs = feedbackLogs.length;
-    const accuracyRate = Math.min(99.4, 89.3 + totalLogs * 0.15);
-
-    res.json({
-      success: true,
-      message: 'Trip telemetry recorded. Crowd DNA weights updated.',
-      feedbackId: feedbackEntry.id,
-      modelStats: {
-        totalFeedbackTrained: totalLogs + 19440,
-        modelAccuracy: Number(accuracyRate.toFixed(1)),
-        activeLearningWeightsUpdated: true,
-        xpAwarded: 50,
-      },
-    });
-  } catch (err) {
+  } catch (err: any) {
     console.error('Error processing trip feedback:', err);
-    res.status(500).json({ error: 'Failed to record trip telemetry' });
+    res.status(500).json({ success: false, error: 'Failed to record trip telemetry' });
   }
 });
 

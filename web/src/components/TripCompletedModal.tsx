@@ -4,12 +4,14 @@ import confetti from 'canvas-confetti';
 import { 
   CheckCircle2, Sparkles, Star, ThumbsUp, 
   Users, ShieldCheck, ArrowRight, X, HeartHandshake, Zap, Target,
-  TrainFront, CreditCard
+  TrainFront, CreditCard, AlertCircle
 } from 'lucide-react';
-import { BusTransit, CrowdLevel, UserProfile } from '../types';
+import { BusTransit, CrowdLevel, RouteStop, UserProfile } from '../types';
+import { submitTripFeedback } from '../utils/mlApi';
 
 interface TripCompletedModalProps {
   bus: BusTransit;
+  currentStop?: RouteStop;
   profile: UserProfile;
   onClose: () => void;
   onFeedbackSubmitted: (updatedProfile: UserProfile) => void;
@@ -17,6 +19,7 @@ interface TripCompletedModalProps {
 
 export const TripCompletedModal: React.FC<TripCompletedModalProps> = ({
   bus,
+  currentStop,
   profile,
   onClose,
   onFeedbackSubmitted,
@@ -27,6 +30,7 @@ export const TripCompletedModal: React.FC<TripCompletedModalProps> = ({
   const [comment, setComment] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitted, setSubmitted] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [modelUpdateStats, setModelUpdateStats] = useState<any>(null);
 
   useEffect(() => {
@@ -50,24 +54,25 @@ export const TripCompletedModal: React.FC<TripCompletedModalProps> = ({
     { level: 'Overflowing', label: 'Overcrowded', desc: 'Door crush / had to wait for next train' },
   ];
 
+  const stationToAttribute = currentStop?.name || bus.nextStop || 'Guindy Metro Station';
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
-      const res = await fetch('/api/trip/submit-feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tripId: `trip-${Date.now()}`,
-          busRoute: bus.routeNumber,
-          predictedProbability: bus.boardingProbability,
-          actualCrowd,
-          boardingSucceeded,
-          comment,
-        }),
+      const data = await submitTripFeedback({
+        tripId: `trip-${Date.now()}`,
+        busRoute: bus.routeNumber,
+        station_name: stationToAttribute,
+        stationName: stationToAttribute,
+        predictedProbability: bus.boardingProbability,
+        actualCrowd,
+        boardingSucceeded,
+        seatSecured,
+        comment,
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      if (data.success) {
         setModelUpdateStats(data.modelStats);
         setSubmitted(true);
 
@@ -79,10 +84,13 @@ export const TripCompletedModal: React.FC<TripCompletedModalProps> = ({
         };
 
         onFeedbackSubmitted(updatedProfile);
+      } else {
+        const errorMsg = data.error || 'Model retraining failed';
+        setSubmitError(errorMsg);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Feedback submit error:', err);
-      setSubmitted(true);
+      setSubmitError(err?.message || 'Network error connecting to retraining service');
     } finally {
       setIsSubmitting(false);
     }
@@ -123,7 +131,9 @@ export const TripCompletedModal: React.FC<TripCompletedModalProps> = ({
                 </div>
                 <div>
                   <div className="text-xs font-bold text-slate-900">CMRL Prediction Review</div>
-                  <div className="text-[11px] text-slate-500 font-mono">Predicted: {bus.boardingProbability}% ({bus.crowdLevel})</div>
+                  <div className="text-[11px] text-slate-500 font-mono">
+                    Station: <strong className="text-slate-800">{stationToAttribute}</strong> • Predicted: {bus.boardingProbability}% ({bus.crowdLevel})
+                  </div>
                 </div>
               </div>
               <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200">
@@ -182,7 +192,7 @@ export const TripCompletedModal: React.FC<TripCompletedModalProps> = ({
             </div>
 
             {/* Optional Comment */}
-            <div className="mb-5">
+            <div className="mb-4">
               <input
                 type="text"
                 value={comment}
@@ -191,6 +201,17 @@ export const TripCompletedModal: React.FC<TripCompletedModalProps> = ({
                 className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
               />
             </div>
+
+            {/* Error Reporting Banner */}
+            {submitError && (
+              <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 shadow-xs">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-bold">Retraining / Telemetry Ingestion Failed</div>
+                  <div className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">{submitError}</div>
+                </div>
+              </div>
+            )}
 
             {/* Submit Button */}
             <button
@@ -220,6 +241,17 @@ export const TripCompletedModal: React.FC<TripCompletedModalProps> = ({
               <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto font-medium">
                 Your feedback was fed into the <strong>Chennai Metro Crowd DNA Engine</strong>. Future boarding predictions on Train {bus.routeNumber} are now even more accurate!
               </p>
+            </div>
+
+            {/* Attribution Pill */}
+            <div className="p-3 rounded-2xl bg-blue-50/70 border border-blue-200/80 text-xs flex items-center justify-between text-left">
+              <div>
+                <div className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">Attributed Station</div>
+                <div className="font-extrabold text-slate-900">{modelUpdateStats?.attributedStation || bus.nextStop || 'Guindy Metro Station'}</div>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-1 bg-emerald-100 text-emerald-800 rounded-md font-bold border border-emerald-300">
+                Model Hot-Reloaded
+              </span>
             </div>
 
             {/* ML Feedback Stats Card */}

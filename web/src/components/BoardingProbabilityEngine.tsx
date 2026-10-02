@@ -32,7 +32,8 @@ export const BoardingProbabilityEngine: React.FC<BoardingProbabilityEngineProps>
   onOpenStationModal,
   onSelectStation,
 }) => {
-  const [activeBusId, setActiveBusId] = useState<string>(selectedBusId || buses[0].id);
+  const hasTrains = Boolean(buses && buses.length > 0);
+  const [activeBusId, setActiveBusId] = useState<string>(selectedBusId || (hasTrains ? buses[0].id : ''));
   const [activeStopId, setActiveStopId] = useState<string>(currentStop.id);
 
   // Sync if currentStop changes
@@ -46,11 +47,11 @@ export const BoardingProbabilityEngine: React.FC<BoardingProbabilityEngineProps>
   const [simulatedTimeOffset, setSimulatedTimeOffset] = useState<number>(0); // minutes offset
   const [simulatedCapacity, setSimulatedCapacity] = useState<number | null>(null);
 
-  const selectedBus = buses.find((b) => b.id === activeBusId) || buses[0];
+  const selectedBus = hasTrains ? (buses.find((b) => b.id === activeBusId) || buses[0]) : null;
   const selectedStop = ALL_METRO_STATIONS.find((s) => s.id === activeStopId) || currentStop;
 
   // Compute live CMRL ML prediction dynamically
-  const currentCap = simulatedCapacity !== null ? simulatedCapacity : selectedBus.capacityPercentage;
+  const currentCap = simulatedCapacity !== null ? simulatedCapacity : (selectedBus?.capacityPercentage ?? 50);
   const timeOfDayHour = 8.5 + (simulatedTimeOffset / 60); // 8:30 AM base + offset
 
   const mlPrediction = useMemo(() => {
@@ -59,9 +60,9 @@ export const BoardingProbabilityEngine: React.FC<BoardingProbabilityEngineProps>
       simulatedQueue,
       selectedStop.boardingRateHistorical,
       timeOfDayHour,
-      selectedBus.doorsCount
+      selectedBus?.doorsCount ?? 4
     );
-  }, [currentCap, simulatedQueue, selectedStop.boardingRateHistorical, timeOfDayHour, selectedBus.doorsCount]);
+  }, [currentCap, simulatedQueue, selectedStop.boardingRateHistorical, timeOfDayHour, selectedBus?.doorsCount]);
 
   const isSimulated = simulatedCapacity !== null || simulatedQueue !== currentStop.queueLength || simulatedTimeOffset !== 0;
 
@@ -129,35 +130,43 @@ export const BoardingProbabilityEngine: React.FC<BoardingProbabilityEngineProps>
         {/* Train Selector Chips */}
         <div className="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2.5 overflow-x-auto pb-1">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0">Select Metro Train:</span>
-          {buses.map((bus) => {
-            const isSelected = bus.id === activeBusId;
-            return (
-              <button
-                key={bus.id}
-                id={`engine-select-bus-${bus.id}`}
-                onClick={() => {
-                  setActiveBusId(bus.id);
-                  onSelectBus(bus);
-                }}
-                className={`px-3.5 py-2 rounded-2xl text-xs font-bold font-mono transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                  isSelected
-                    ? 'bg-[#0066B2] text-white shadow-sm shadow-blue-500/20 scale-105'
-                    : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                <span>{bus.routeNumber}</span>
-                <span className={`text-[10px] font-normal font-sans px-1.5 py-0.2 rounded-md ${
-                  isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
-                }`}>
-                  {bus.boardingProbability}%
-                </span>
-              </button>
-            );
-          })}
+          {buses.length > 0 ? (
+            buses.map((bus) => {
+              const isSelected = bus.id === activeBusId;
+              return (
+                <button
+                  key={bus.id}
+                  id={`engine-select-bus-${bus.id}`}
+                  onClick={() => {
+                    setActiveBusId(bus.id);
+                    onSelectBus(bus);
+                  }}
+                  className={`px-3.5 py-2 rounded-2xl text-xs font-bold font-mono transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#0066B2] text-white shadow-sm shadow-blue-500/20 scale-105'
+                      : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>{bus.routeNumber}</span>
+                  <span className={`text-[10px] font-normal font-sans px-1.5 py-0.2 rounded-md ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {bus.boardingProbability}%
+                  </span>
+                </button>
+              );
+            })
+          ) : (
+            <span className="text-xs text-slate-400 italic font-medium">
+              No trains operating at this hour (Chennai Metro operates 05:00 - 23:00)
+            </span>
+          )}
         </div>
       </div>
 
-      {/* CORE ML PREDICTION DISPLAY & BREAKDOWN */}
+      {selectedBus ? (
+        <>
+          {/* CORE ML PREDICTION DISPLAY & BREAKDOWN */}
       <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs relative overflow-hidden">
         {isSimulated && (
           <div className="absolute top-0 right-0 bg-amber-500 text-white font-black text-[10px] px-3.5 py-1 rounded-bl-2xl uppercase tracking-wider flex items-center gap-1 shadow-xs">
@@ -488,6 +497,23 @@ export const BoardingProbabilityEngine: React.FC<BoardingProbabilityEngineProps>
           </div>
         </div>
       </div>
+    </>
+  ) : (
+    <div className="bg-white border border-slate-200/90 rounded-3xl p-10 shadow-xs text-center">
+      <div className="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-xs mb-4">
+        <Clock className="w-8 h-8" />
+      </div>
+      <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-black rounded-full uppercase tracking-wider inline-flex items-center gap-1.5 border border-amber-300">
+        Operations Closed
+      </span>
+      <h3 className="text-xl font-black text-slate-900 mt-3">
+        No Scheduled Metro Services at this Hour
+      </h3>
+      <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto mt-2 leading-relaxed">
+        Chennai Metro passenger services run daily between 05:00 AM and 11:00 PM. Please select an active time from the clock manager to inspect live boarding odds.
+      </p>
     </div>
-  );
+  )}
+</div>
+);
 };

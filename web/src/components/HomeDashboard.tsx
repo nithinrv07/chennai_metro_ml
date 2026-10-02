@@ -56,8 +56,9 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const [showDestPicker, setShowDestPicker] = useState(false);
 
   // Recommended / Nearest metro train
-  const heroBus = buses.find((b) => b.isRecommended) || buses[0];
-  const otherBuses = buses.filter((b) => b.id !== heroBus.id);
+  const hasTrains = Boolean(buses && buses.length > 0);
+  const heroBus = hasTrains ? (buses.find((b) => b.isRecommended) || buses[0]) : null;
+  const otherBuses = hasTrains && heroBus ? buses.filter((b) => b.id !== heroBus.id) : [];
 
   const filteredDestinations = POPULAR_DESTINATIONS.filter((d) =>
     d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -67,8 +68,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const popularStations = ALL_METRO_STATIONS.slice(0, 6);
 
   // Determine probability visual styles
-  const isHighProb = heroBus.boardingProbability >= 80;
-  const isMedProb = heroBus.boardingProbability >= 60 && heroBus.boardingProbability < 80;
+  const isHighProb = heroBus ? heroBus.boardingProbability >= 80 : false;
+  const isMedProb = heroBus ? heroBus.boardingProbability >= 60 && heroBus.boardingProbability < 80 : false;
   const probColorClass = isHighProb
     ? 'text-emerald-500'
     : isMedProb
@@ -190,181 +191,211 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* SECTION 1: PRIMARY PREDICTION HERO CARD (8 cols) */}
         <section className="lg:col-span-8 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs flex flex-col justify-between relative overflow-hidden">
-          <div>
-            {/* Top Header */}
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          {heroBus ? (
+            <>
               <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-3 py-1 bg-emerald-50 text-emerald-800 text-xs font-black rounded-full uppercase tracking-wider inline-flex items-center gap-1.5 border border-emerald-300 shadow-xs">
-                    <span className="flex h-2 w-2 relative shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600" />
-                    </span>
-                    Current Approaching Train
-                  </span>
-                  <span className="px-3 py-1 bg-blue-50 text-[#0066B2] text-xs font-bold rounded-full uppercase tracking-wider inline-flex items-center gap-1.5 border border-blue-100">
-                    <Zap className="w-3.5 h-3.5 fill-current" />
-                    CMRL ML Prediction
-                  </span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                    heroBus.lineColor === 'green'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-blue-50 text-[#0066B2] border-blue-200'
-                  }`}>
-                    {heroBus.lineType || 'Blue Line'}
-                  </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-bold">
-                    4-Car Alstom Rake
-                  </span>
-                </div>
-
-                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-3 tracking-tight flex items-center gap-2">
-                  <span>Metro {heroBus.routeNumber}</span>
-                  <span className="text-slate-300 font-normal">|</span>
-                  <span className="text-base sm:text-xl font-bold text-slate-700">{heroBus.name}</span>
-                </h2>
-                
-                {/* Real Arriving Time & Platform Badge */}
-                <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50/90 border border-blue-200 text-[#0066B2] shadow-xs">
-                    <Clock className="w-4 h-4 text-[#0066B2] shrink-0 animate-pulse" />
-                    <div className="flex items-baseline gap-1.5 font-mono">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-sans">Arrival Time:</span>
-                      <span className="text-sm font-black text-[#0066B2]">
-                        {heroBus.realArrivalTime || simulatedTime}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-slate-600 text-xs sm:text-sm font-medium flex items-center gap-1.5 flex-wrap">
-                    <span>Arriving in <span className="text-[#0066B2] font-black">{heroBus.arrivalMinutes} minutes</span> at <strong className="text-slate-800">{heroBus.platformNumber || 'Platform 2'}</strong></span>
-                    {heroBus.currentLocation && (
-                      <>
-                        <span className="text-slate-300">•</span>
-                        <span className="text-slate-600 text-xs flex items-center gap-1 font-sans font-semibold">
-                          <Radio className="w-3 h-3 text-emerald-600 animate-pulse shrink-0" />
-                          Live: {heroBus.currentLocation}
+                {/* Top Header */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-3 py-1 bg-emerald-50 text-emerald-800 text-xs font-black rounded-full uppercase tracking-wider inline-flex items-center gap-1.5 border border-emerald-300 shadow-xs">
+                        <span className="flex h-2 w-2 relative shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600" />
                         </span>
-                      </>
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              {/* Big High Probability Pill */}
-              <div className="sm:text-right flex sm:flex-col items-baseline sm:items-end justify-between gap-1.5 shrink-0">
-                <div className={`text-5xl sm:text-6xl font-black font-mono tracking-tight leading-none ${probColorClass}`}>
-                  {heroBus.boardingProbability}%
-                </div>
-                <div className={`text-xs font-extrabold px-3 py-1 rounded-lg uppercase tracking-wider border ${probBgClass}`}>
-                  {heroBus.boardingProbability >= 80 ? 'HIGH PROBABILITY' : heroBus.boardingProbability >= 60 ? 'MODERATE PROBABILITY' : 'LOW CLEARANCE'}
-                </div>
-              </div>
-            </div>
-
-            {/* 4 Bento Fact Metric Tiles */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-6">
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-                <p className="text-xl sm:text-2xl font-black text-slate-900">{heroBus.crowdLevel}</p>
-                <p className="text-[10px] text-slate-400 uppercase font-bold mt-1 tracking-widest">Train Crowd</p>
-              </div>
-
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-                <p className="text-xl sm:text-2xl font-black text-slate-900 font-mono">{heroBus.capacityPercentage}%</p>
-                <p className="text-[10px] text-slate-400 uppercase font-bold mt-1 tracking-widest">Rake Load</p>
-              </div>
-
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-                <p className="text-xl sm:text-2xl font-black text-[#0066B2] font-mono">{heroBus.seatsAvailable}</p>
-                <p className="text-[10px] text-slate-400 uppercase font-bold mt-1 tracking-widest">Open Seats</p>
-              </div>
-
-              <div className="p-3.5 bg-blue-50/70 rounded-2xl border border-blue-100 text-center">
-                <p className="text-xl sm:text-2xl font-black text-[#0066B2] font-mono">{heroBus.historicalSuccessRate}%</p>
-                <p className="text-[10px] text-blue-700/70 uppercase font-bold mt-1 tracking-widest">Clearance Rate</p>
-              </div>
-            </div>
-
-            {/* 4-Coach Car Congestion Indicator */}
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 mb-4">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-2.5">
-                <span className="flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-[#0066B2]" />
-                  4-Car Coach Load Distribution:
-                </span>
-                <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 font-mono font-bold flex items-center gap-1">
-                  <Star className="w-3 h-3 fill-emerald-600 text-emerald-600" />
-                  Stand at Coach 4 (Rear)
-                </span>
-              </div>
-              {(() => {
-                const heroBreakdown = heroBus.crowdBreakdown || (heroBus as any).coachBreakdown || { front: 45, middle: 75, rear: 35 };
-                return (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="p-2.5 rounded-xl bg-white border border-slate-200 text-center">
-                      <span className="text-[10px] font-bold text-slate-400 block">Coach 1 (Women)</span>
-                      <span className="text-xs font-black text-slate-800 font-mono">{heroBreakdown.front}% load</span>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-center">
-                      <span className="text-[10px] font-bold text-rose-500 block">Coach 2 (Mid)</span>
-                      <span className="text-xs font-black text-rose-700 font-mono">{heroBreakdown.middle}% load</span>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-center">
-                      <span className="text-[10px] font-bold text-rose-500 block">Coach 3 (Mid)</span>
-                      <span className="text-xs font-black text-rose-700 font-mono">{heroBreakdown.middle}% load</span>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-center ring-1 ring-emerald-200">
-                      <span className="text-[10px] font-bold text-emerald-700 block flex items-center justify-center gap-1">
-                        Coach 4 (Rear) ★
+                        Current Approaching Train
                       </span>
-                      <span className="text-xs font-black text-emerald-700 font-mono">{heroBreakdown.rear}% load</span>
+                      <span className="px-3 py-1 bg-blue-50 text-[#0066B2] text-xs font-bold rounded-full uppercase tracking-wider inline-flex items-center gap-1.5 border border-blue-100">
+                        <Zap className="w-3.5 h-3.5 fill-current" />
+                        CMRL ML Prediction
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                        heroBus.lineColor === 'green'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-blue-50 text-[#0066B2] border-blue-200'
+                      }`}>
+                        {heroBus.lineType || 'Blue Line'}
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-bold">
+                        4-Car Alstom Rake
+                      </span>
+                    </div>
+
+                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-3 tracking-tight flex items-center gap-2">
+                      <span>Metro {heroBus.routeNumber}</span>
+                      <span className="text-slate-300 font-normal">|</span>
+                      <span className="text-base sm:text-xl font-bold text-slate-700">{heroBus.name}</span>
+                    </h2>
+                    
+                    {/* Real Arriving Time & Platform Badge */}
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50/90 border border-blue-200 text-[#0066B2] shadow-xs">
+                        <Clock className="w-4 h-4 text-[#0066B2] shrink-0 animate-pulse" />
+                        <div className="flex items-baseline gap-1.5 font-mono">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-sans">Arrival Time:</span>
+                          <span className="text-sm font-black text-[#0066B2]">
+                            {heroBus.realArrivalTime || simulatedTime}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-slate-600 text-xs sm:text-sm font-medium flex items-center gap-1.5 flex-wrap">
+                        <span>Arriving in <span className="text-[#0066B2] font-black">{heroBus.arrivalMinutes} minutes</span> at <strong className="text-slate-800">{heroBus.platformNumber || 'Platform 2'}</strong></span>
+                        {heroBus.currentLocation && (
+                          <>
+                            <span className="text-slate-300">•</span>
+                            <span className="text-slate-600 text-xs flex items-center gap-1 font-sans font-semibold">
+                              <Radio className="w-3 h-3 text-emerald-600 animate-pulse shrink-0" />
+                              Live: {heroBus.currentLocation}
+                            </span>
+                          </>
+                        )}
+                      </p>
                     </div>
                   </div>
-                );
-              })()}
-            </div>
 
-            {/* Visual Probability Fill Bar */}
-            <div className="space-y-1.5 mb-2">
-              <div className="flex justify-between text-[11px] text-slate-400 font-bold uppercase tracking-wider">
-                <span>Predictive Clearance Confidence</span>
-                <span className="font-mono text-slate-600">{heroBus.boardingProbability}% Certainty ({heroBus.confidenceScore}% Confidence)</span>
+                  {/* Big High Probability Pill */}
+                  <div className="sm:text-right flex sm:flex-col items-baseline sm:items-end justify-between gap-1.5 shrink-0">
+                    <div className={`text-5xl sm:text-6xl font-black font-mono tracking-tight leading-none ${probColorClass}`}>
+                      {heroBus.boardingProbability}%
+                    </div>
+                    <div className={`text-xs font-extrabold px-3 py-1 rounded-lg uppercase tracking-wider border ${probBgClass}`}>
+                      {heroBus.boardingProbability >= 80 ? 'HIGH PROBABILITY' : heroBus.boardingProbability >= 60 ? 'MODERATE PROBABILITY' : 'LOW CLEARANCE'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4 Bento Fact Metric Tiles */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-6">
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-center">
+                    <p className="text-xl sm:text-2xl font-black text-slate-900">{heroBus.crowdLevel}</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold mt-1 tracking-widest">Train Crowd</p>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-center">
+                    <p className="text-xl sm:text-2xl font-black text-slate-900 font-mono">{heroBus.capacityPercentage}%</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold mt-1 tracking-widest">Rake Load</p>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-center">
+                    <p className="text-xl sm:text-2xl font-black text-[#0066B2] font-mono">{heroBus.seatsAvailable}</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold mt-1 tracking-widest">Open Seats</p>
+                  </div>
+
+                  <div className="p-3.5 bg-blue-50/70 rounded-2xl border border-blue-100 text-center">
+                    <p className="text-xl sm:text-2xl font-black text-[#0066B2] font-mono">{heroBus.historicalSuccessRate}%</p>
+                    <p className="text-[10px] text-blue-700/70 uppercase font-bold mt-1 tracking-widest">Clearance Rate</p>
+                  </div>
+                </div>
+
+                {/* 4-Coach Car Congestion Indicator */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 mb-4">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-2.5">
+                    <span className="flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-[#0066B2]" />
+                      4-Car Coach Load Distribution:
+                    </span>
+                    <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 font-mono font-bold flex items-center gap-1">
+                      <Star className="w-3 h-3 fill-emerald-600 text-emerald-600" />
+                      Stand at Coach 4 (Rear)
+                    </span>
+                  </div>
+                  {(() => {
+                    const heroBreakdown = heroBus.crowdBreakdown || (heroBus as any).coachBreakdown || { front: 45, middle: 75, rear: 35 };
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 text-center">
+                          <span className="text-[10px] font-bold text-slate-400 block">Coach 1 (Women)</span>
+                          <span className="text-xs font-black text-slate-800 font-mono">{heroBreakdown.front}% load</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-center">
+                          <span className="text-[10px] font-bold text-rose-500 block">Coach 2 (Mid)</span>
+                          <span className="text-xs font-black text-rose-700 font-mono">{heroBreakdown.middle}% load</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-center">
+                          <span className="text-[10px] font-bold text-rose-500 block">Coach 3 (Mid)</span>
+                          <span className="text-xs font-black text-rose-700 font-mono">{heroBreakdown.middle}% load</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-center ring-1 ring-emerald-200">
+                          <span className="text-[10px] font-bold text-emerald-700 block flex items-center justify-center gap-1">
+                            Coach 4 (Rear) ★
+                          </span>
+                          <span className="text-xs font-black text-emerald-700 font-mono">{heroBreakdown.rear}% load</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Visual Probability Fill Bar */}
+                <div className="space-y-1.5 mb-2">
+                  <div className="flex justify-between text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+                    <span>Predictive Clearance Confidence</span>
+                    <span className="font-mono text-slate-600">{heroBus.boardingProbability}% Certainty ({heroBus.confidenceScore}% Confidence)</span>
+                  </div>
+                  <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden p-0.5">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        heroBus.boardingProbability >= 80 ? 'bg-emerald-500' : heroBus.boardingProbability >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                      }`}
+                      style={{ width: `${heroBus.boardingProbability}%` }}
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-400 italic mt-3 font-medium">
+                  * CMRL prediction engine computes high boarding likelihood based on {currentStop.name} telemetry, 24 unallocated seats, and rapid 8-door automatic clearance.
+                </p>
               </div>
-              <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden p-0.5">
-                <div 
-                  className={`h-full rounded-full transition-all duration-700 ${
-                    heroBus.boardingProbability >= 80 ? 'bg-emerald-500' : heroBus.boardingProbability >= 60 ? 'bg-amber-500' : 'bg-rose-500'
-                  }`}
-                  style={{ width: `${heroBus.boardingProbability}%` }}
-                />
+
+              {/* Action Row */}
+              <div className="flex flex-wrap items-center gap-3 pt-6 mt-4 border-t border-slate-100">
+                <button
+                  id="board-now-hero-btn"
+                  onClick={() => onStartTrip(heroBus)}
+                  className="flex-1 min-w-[200px] py-3.5 px-5 rounded-2xl bg-gradient-to-r from-[#0066B2] to-[#00518f] hover:from-[#00518f] hover:to-[#003d6d] text-white font-extrabold text-sm flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-600/20 active:scale-[0.99] cursor-pointer"
+                >
+                  <TrainFront className="w-4 h-4" />
+                  Board Train {heroBus.routeNumber} Now
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+
+                <button
+                  id="hero-deep-dive-btn"
+                  onClick={() => onOpenBoardingEngine(heroBus.id)}
+                  className="py-3.5 px-4 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
+                >
+                  <Target className="w-4 h-4 text-[#0066B2]" />
+                  Prediction Sandbox
+                </button>
               </div>
+            </>
+          ) : (
+            <div className="py-12 px-4 text-center my-auto">
+              <div className="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-xs mb-4">
+                <Clock className="w-8 h-8" />
+              </div>
+              <span className="px-3 py-1 bg-amber-100/80 text-amber-800 text-xs font-black rounded-full uppercase tracking-wider inline-flex items-center gap-1.5 border border-amber-300">
+                Metro Services Closed
+              </span>
+              <h2 className="text-2xl font-black text-slate-900 mt-3 tracking-tight">
+                Chennai Metro is Currently Closed
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto mt-2 leading-relaxed">
+                CMRL passenger services on Corridor 1 (Blue Line) and Corridor 2 (Green Line) operate daily between <strong>05:00 AM</strong> and <strong>11:00 PM</strong>. No scheduled passenger rakes are operating at this time.
+              </p>
+              {onOpenTimeModal && (
+                <div className="pt-6 flex justify-center">
+                  <button
+                    onClick={onOpenTimeModal}
+                    className="px-5 py-2.5 rounded-2xl bg-[#0066B2] hover:bg-blue-600 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                  >
+                    <Clock className="w-4 h-4" />
+                    Simulate Active Operating Hours
+                  </button>
+                </div>
+              )}
             </div>
-
-            <p className="text-xs text-slate-400 italic mt-3 font-medium">
-              * CMRL prediction engine computes high boarding likelihood based on {currentStop.name} telemetry, 24 unallocated seats, and rapid 8-door automatic clearance.
-            </p>
-          </div>
-
-          {/* Action Row */}
-          <div className="flex flex-wrap items-center gap-3 pt-6 mt-4 border-t border-slate-100">
-            <button
-              id="board-now-hero-btn"
-              onClick={() => onStartTrip(heroBus)}
-              className="flex-1 min-w-[200px] py-3.5 px-5 rounded-2xl bg-gradient-to-r from-[#0066B2] to-[#00518f] hover:from-[#00518f] hover:to-[#003d6d] text-white font-extrabold text-sm flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-600/20 active:scale-[0.99] cursor-pointer"
-            >
-              <TrainFront className="w-4 h-4" />
-              Board Train {heroBus.routeNumber} Now
-              <ArrowRight className="w-4 h-4" />
-            </button>
-
-            <button
-              id="hero-deep-dive-btn"
-              onClick={() => onOpenBoardingEngine(heroBus.id)}
-              className="py-3.5 px-4 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
-            >
-              <Target className="w-4 h-4 text-[#0066B2]" />
-              Prediction Sandbox
-            </button>
-          </div>
+          )}
         </section>
 
         {/* SECTION 2: SMART COACH RECOMMENDATION BENTO BLOCK (4 cols) */}
@@ -389,20 +420,33 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                 Platform Staging Guidance
               </div>
               <p className="leading-relaxed text-blue-200/90 text-[11px]">
-                Stand near <strong>Coach 4 (Rear Car DMC2)</strong> at {currentStop.name.replace(' Metro Station', '')} for fastest boarding. Singara Chennai card saves 20% on fare ({heroBus.fare}).
+                {heroBus 
+                  ? `Stand near Coach 4 (Rear Car DMC2) at ${currentStop.name.replace(' Metro Station', '')} for fastest boarding. Singara Chennai card saves 20% on fare (${heroBus.fare}).`
+                  : 'Automated turnstiles and ticket vending counters reopen 15 minutes before the first train at 04:45 AM.'}
               </p>
             </div>
           </div>
 
           <div className="relative z-10 space-y-2.5">
-            <button
-              id="coach-bento-btn"
-              onClick={() => onStartTrip(heroBus)}
-              className="w-full py-3.5 bg-white hover:bg-blue-50 text-[#0a2540] rounded-2xl font-black text-sm transition-all shadow-md active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Zap className="w-4 h-4 text-[#0066B2] fill-current" />
-              Board Train {heroBus.routeNumber}
-            </button>
+            {heroBus ? (
+              <button
+                id="coach-bento-btn"
+                onClick={() => onStartTrip(heroBus)}
+                className="w-full py-3.5 bg-white hover:bg-blue-50 text-[#0a2540] rounded-2xl font-black text-sm transition-all shadow-md active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Zap className="w-4 h-4 text-[#0066B2] fill-current" />
+                Board Train {heroBus.routeNumber}
+              </button>
+            ) : (
+              <button
+                id="coach-bento-btn"
+                onClick={onOpenTimeModal}
+                className="w-full py-3.5 bg-white hover:bg-blue-50 text-[#0a2540] rounded-2xl font-black text-sm transition-all shadow-md active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Clock className="w-4 h-4 text-[#0066B2]" />
+                Select Morning Service (08:30 AM)
+              </button>
+            )}
 
             <button
               id="coach-explore-btn"
@@ -486,28 +530,29 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {buses.map((bus) => {
-              const isHero = bus.id === heroBus.id;
-              const probColor = bus.boardingProbability >= 80 
-                ? 'text-emerald-600' 
-                : bus.boardingProbability >= 60 
-                ? 'text-amber-600' 
-                : 'text-rose-600';
+            {buses.length > 0 ? (
+              buses.map((bus) => {
+                const isHero = heroBus ? bus.id === heroBus.id : false;
+                const probColor = bus.boardingProbability >= 80 
+                  ? 'text-emerald-600' 
+                  : bus.boardingProbability >= 60 
+                  ? 'text-amber-600' 
+                  : 'text-rose-600';
 
-              const badgeColor = bus.lineColor === 'green'
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-blue-50 text-[#0066B2] border-blue-200';
+                const badgeColor = bus.lineColor === 'green'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-blue-50 text-[#0066B2] border-blue-200';
 
-              return (
-                <div
-                  key={bus.id}
-                  id={`bento-bus-item-${bus.id}`}
-                  className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
-                    isHero
-                      ? 'bg-blue-50/40 border-blue-300 ring-1 ring-blue-200 shadow-xs'
-                      : 'bg-slate-50/80 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                >
+                return (
+                  <div
+                    key={bus.id}
+                    id={`bento-bus-item-${bus.id}`}
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                      isHero
+                        ? 'bg-blue-50/40 border-blue-300 ring-1 ring-blue-200 shadow-xs'
+                        : 'bg-slate-50/80 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
                   <div className="flex items-center gap-3.5">
                     <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center font-black text-base font-mono border border-slate-200 shadow-xs text-slate-900">
                       {bus.routeNumber}
@@ -550,7 +595,12 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                   </div>
                 </div>
               );
-            })}
+            })
+          ) : (
+            <div className="col-span-full py-8 px-4 text-center bg-slate-50/80 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">
+              No active passenger trains running on tracks during night suspension (23:00 - 05:00). Operations resume at 05:00 AM.
+            </div>
+          )}
           </div>
         </section>
 

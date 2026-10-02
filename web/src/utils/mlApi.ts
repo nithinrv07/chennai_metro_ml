@@ -44,6 +44,7 @@ export interface MLPredictResponse {
 
 export interface MLPredictTrainsResponse {
   station_name: string;
+  destination?: string;
   hour: number;
   minute: number;
   day_of_week: string;
@@ -51,6 +52,9 @@ export interface MLPredictTrainsResponse {
   base_crowd_level: string;
   base_density_pct: number;
   trains: BusTransit[];
+  service_status?: string;
+  message?: string;
+  detail?: string;
 }
 
 export interface MLCrowdDNAResponse {
@@ -66,23 +70,29 @@ export interface MLCrowdDNAResponse {
 export interface MLFeedbackPayload {
   tripId?: string;
   busRoute?: string;
+  station_name?: string;
+  stationName?: string;
   predictedProbability?: number;
   actualCrowd?: string;
   boardingSucceeded?: boolean;
   userWaitMinutes?: number;
   seatSecured?: boolean;
   comment?: string;
+  timestamp?: string;
 }
 
 export interface MLFeedbackResponse {
   success: boolean;
-  message: string;
+  message?: string;
+  error?: string;
   feedback_id?: string;
-  modelStats: {
-    totalFeedbackTrained: number;
-    modelAccuracy: number;
+  modelStats?: {
+    totalFeedbackTrained?: number;
+    feedbackSamples?: number;
+    modelAccuracy?: number;
     activeLearningWeightsUpdated: boolean;
-    xpAwarded: number;
+    xpAwarded?: number;
+    attributedStation?: string;
   };
 }
 
@@ -145,7 +155,22 @@ export async function fetchMLTrains(
         is_peak_hour: isPeak ? 1 : 0,
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      return {
+        station_name: stationName,
+        destination,
+        hour,
+        minute,
+        day_of_week: dayOfWeek,
+        ml_confidence: 0,
+        base_crowd_level: res.status === 400 ? 'Invalid Station' : 'Closed',
+        base_density_pct: 0,
+        trains: [],
+        service_status: res.status === 400 ? 'Invalid Station' : 'Closed',
+        message: errJson.detail || errJson.error || `HTTP ${res.status}`
+      };
+    }
     return await res.json();
   } catch (err) {
     console.warn('Could not fetch ML train predictions:', err);
@@ -175,8 +200,10 @@ export async function submitTripFeedback(payload: MLFeedbackPayload): Promise<ML
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    throw new Error('Failed to submit trip feedback');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.success === false) {
+    const errorMsg = data.error || data.detail || `Feedback submission failed (${res.status})`;
+    throw new Error(errorMsg);
   }
-  return await res.json();
+  return data;
 }

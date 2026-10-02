@@ -72,7 +72,35 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
   });
   const [aiSource, setAiSource] = useState<string>('gemini-2.5-flash');
 
-  const recommendedBus = buses.find((b) => b.routeNumber === advice.recommendedBusRoute) || buses[0];
+  const hasTrains = Boolean(buses && buses.length > 0);
+  const recommendedBus: BusTransit = (hasTrains ? (buses.find((b) => b.routeNumber === advice.recommendedBusRoute) || buses[0]) : null) || {
+    id: 'train-closed',
+    routeNumber: 'CMRL-OFF',
+    name: 'Chennai Metro Fleet (Closed)',
+    lineType: 'Blue / Green Line',
+    lineColor: 'blue',
+    destination: 'Depot',
+    currentLocation: 'Maintenance Depot',
+    nextStop: currentStop.name,
+    arrivalMinutes: 0,
+    realArrivalTime: '05:00 AM',
+    historicalSuccessRate: 95,
+    boardingProbability: 0,
+    crowdLevel: 'Low',
+    capacityPercentage: 0,
+    seatsAvailable: 0,
+    confidenceScore: 90,
+    totalCapacity: 240,
+    fare: '₹0',
+    acStatus: 'Standby',
+    doorsCount: 4,
+    platformNumber: 'Platform 1 & 2',
+    wheelchairAccessible: true,
+    crowdBreakdown: { front: 0, middle: 0, rear: 0 },
+    coachBreakdown: { front: 0, middle: 0, rear: 0 },
+    isRecommended: false,
+    coachReason: 'Metro passenger services closed between 23:00 and 05:00.'
+  };
 
   // Countdown timer state for next arriving train (in seconds)
   const [countdownSeconds, setCountdownSeconds] = useState<number>(

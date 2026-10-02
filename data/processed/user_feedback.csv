@@ -1,3 +1,7 @@
-Trip_ID,Bus_Route,Predicted_Probability,Actual_Crowd,Boarding_Succeeded,Wait_Minutes,Seat_Secured,Comment,Timestamp
-test-1,BL-104,85.0,Moderate,1,3,1,Comfortable rear coach,2026-09-07T13:35:31.771169
-test-isolated-fb,BL-104,85.0,High,1,4,0,,2026-10-02T03:02:55.041093
+Trip_ID,Bus_Route,Station_Name,Predicted_Probability,Actual_Crowd,Boarding_Succeeded,Wait_Minutes,Seat_Secured,Comment,Timestamp
+test-1,BL-104,Guindy Metro Station,85.0,Moderate,1,3,1,Comfortable rear coach,2026-09-07T13:35:31.771169
+test-isolated-fb,BL-104,Guindy Metro Station,85.0,High,1,4,0,,2026-10-02T03:02:55.041093
+test-attrib-1790926772816,BL-112,Puratchi Thalaivar Dr. M.G.R Central,88.0,Low,1,4,1,Central attribution automated verification,2026-10-02T07:39:32.818143
+test-attrib-1790926889278,BL-112,Puratchi Thalaivar Dr. M.G.R Central,88.0,Low,1,4,1,Central attribution automated verification,2026-10-02T07:41:29.280001
+test-attrib-1790927373508,BL-112,Puratchi Thalaivar Dr. M.G.R Central,88.0,Low,1,4,1,Central attribution automated verification,2026-10-02T07:49:33.508491
+fail-test-id,BL-104,Guindy Metro Station,80.0,Moderate,1,4,1,Failure test,2026-10-02T07:49:34.141136
