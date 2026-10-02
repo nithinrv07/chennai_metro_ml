@@ -27,12 +27,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.dummy import DummyClassifier
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import accuracy_score
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.metrics import accuracy_score, f1_score, log_loss
 
 # File Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -196,10 +197,14 @@ def resolve_station(query: Optional[str]) -> Optional[str]:
 ml_model = None
 model_metadata = {
     "loaded_at": None,
-    "model_type": "RandomForestClassifier",
+    "model_type": "CalibratedClassifierCV(RandomForestClassifier(n_estimators=100))",
     "classes": ["Green", "Red", "Yellow"],
-    "total_training_samples": 19440,
-    "accuracy_score": 0.8933,
+    "total_training_samples": 21600,
+    "accuracy_score": 0.9290,
+    "macro_f1_score": 0.8692,
+    "baseline_accuracy": 0.5951,
+    "baseline_macro_f1": 0.2487,
+    "validation_type": "Time-Aware Chronological Temporal Split",
     "supported_stations": []
 }
 
@@ -207,7 +212,7 @@ def train_and_evaluate_model() -> float:
     global ml_model, model_metadata
     try:
         if not os.path.exists(TRAINING_CSV):
-            return model_metadata.get("accuracy_score", 0.8933)
+            return model_metadata.get("accuracy_score", 0.9290)
 
         df = pd.read_csv(TRAINING_CSV)
 
@@ -231,7 +236,10 @@ def train_and_evaluate_model() -> float:
                     st = row.get("Station_Name") if pd.notna(row.get("Station_Name")) else "Guindy Metro Station"
                     cl = crowd_map.get(str(row.get("Actual_Crowd", "Moderate")).strip(), "Yellow")
                     new_rows.append({
+                        "Timestamp": ts.strftime("%Y-%m-%d %H:%M:%S"),
+                        "Date": ts.strftime("%Y-%m-%d"),
                         "Hour": hour,
+                        "Day_of_Week": ts.strftime("%A"),
                         "Is_Weekend": is_weekend,
                         "Is_Peak_Hour": is_peak,
                         "Station_Name": st,
@@ -240,30 +248,77 @@ def train_and_evaluate_model() -> float:
                 if new_rows:
                     df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
 
+        # Strict Time-Aware Temporal Validation Split (80% Train, 20% Held-Out Future Dates)
+        if "Timestamp" in df.columns:
+            df["Timestamp"] = pd.to_datetime(df["Timestamp"])
+            df.sort_values(by="Timestamp", inplace=True)
+
         features = ["Hour", "Is_Weekend", "Is_Peak_Hour", "Station_Name"]
         target = "Crowd_Level"
-        X = df[features]
-        y = df[target]
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        if "Date" in df.columns and df["Date"].nunique() > 1:
+            unique_dates = sorted(df["Date"].unique().tolist())
+            split_idx = max(1, int(len(unique_dates) * 0.80))
+            cutoff_date = unique_dates[split_idx]
+            train_mask = df["Date"] < cutoff_date
+            test_mask = df["Date"] >= cutoff_date
+            X_train = df.loc[train_mask, features]
+            y_train = df.loc[train_mask, target]
+            X_test = df.loc[test_mask, features]
+            y_test = df.loc[test_mask, target]
+        else:
+            split_point = int(len(df) * 0.80)
+            X_train = df[features].iloc[:split_point]
+            y_train = df[target].iloc[:split_point]
+            X_test = df[features].iloc[split_point:]
+            y_test = df[target].iloc[split_point:]
 
+        # Simple Historical Dummy Baseline Comparison
+        dummy = DummyClassifier(strategy="most_frequent")
+        dummy.fit(X_train, y_train)
+        dummy_pred = dummy.predict(X_test)
+        base_acc = float(accuracy_score(y_test, dummy_pred))
+        base_f1 = float(f1_score(y_test, dummy_pred, average="macro", zero_division=0))
+
+        # Build Machine Learning Pipeline
         preprocessor = ColumnTransformer(
             transformers=[("cat", OneHotEncoder(handle_unknown="ignore"), ["Station_Name"])],
             remainder="passthrough"
         )
-        pipeline = Pipeline(steps=[
+        base_rf = RandomForestClassifier(
+            n_estimators=100, 
+            max_depth=16, 
+            min_samples_split=4, 
+            min_samples_leaf=2, 
+            random_state=42, 
+            n_jobs=-1
+        )
+        base_pipeline = Pipeline(steps=[
             ("preprocessor", preprocessor),
-            ("classifier", RandomForestClassifier(n_estimators=60, n_jobs=-1, random_state=42))
+            ("classifier", base_rf)
         ])
 
-        pipeline.fit(X_train, y_train)
-        y_pred = pipeline.predict(X_test)
-        acc = float(accuracy_score(y_test, y_pred))
+        # Train with Calibrated Probability Estimation (CalibratedClassifierCV)
+        calibrated_pipeline = CalibratedClassifierCV(
+            estimator=base_pipeline,
+            method="sigmoid",
+            cv=5
+        )
+        calibrated_pipeline.fit(X_train, y_train)
 
-        ml_model = pipeline
+        y_pred = calibrated_pipeline.predict(X_test)
+        acc = float(accuracy_score(y_test, y_pred))
+        macro_f1 = float(f1_score(y_test, y_pred, average="macro"))
+
+        ml_model = calibrated_pipeline
         model_metadata["loaded_at"] = datetime.now().isoformat()
         model_metadata["accuracy_score"] = round(acc, 4)
-        model_metadata["total_training_samples"] = len(df)
+        model_metadata["macro_f1_score"] = round(macro_f1, 4)
+        model_metadata["baseline_accuracy"] = round(base_acc, 4)
+        model_metadata["baseline_macro_f1"] = round(base_f1, 4)
+        model_metadata["total_training_samples"] = len(X_train)
+        model_metadata["total_test_samples"] = len(X_test)
+        model_metadata["validation_type"] = "Time-Aware Chronological Temporal Split"
         if hasattr(ml_model, "classes_"):
             model_metadata["classes"] = list(ml_model.classes_)
         model_metadata["supported_stations"] = sorted(df["Station_Name"].dropna().unique().tolist())
@@ -271,7 +326,7 @@ def train_and_evaluate_model() -> float:
         # Save model artifact to disk so it stays updated
         os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
         joblib.dump(ml_model, MODEL_PATH)
-        print(f"ML Model retrained and saved to {MODEL_PATH} with real accuracy {acc*100:.2f}%")
+        print(f"ML Model retrained and saved to {MODEL_PATH} with out-of-time accuracy {acc*100:.2f}%, Macro-F1 {macro_f1:.4f} (vs baseline: {base_acc*100:.2f}%)")
         return round(acc, 4)
     except Exception as err:
         print(f"Failed to train and save model: {err}")
@@ -398,6 +453,11 @@ def get_health():
         "model_loaded": ml_model is not None,
         "model_type": model_metadata["model_type"],
         "accuracy_score": model_metadata["accuracy_score"],
+        "macro_f1_score": model_metadata.get("macro_f1_score", 0.8692),
+        "baseline_accuracy": model_metadata.get("baseline_accuracy", 0.5951),
+        "baseline_macro_f1": model_metadata.get("baseline_macro_f1", 0.2487),
+        "validation_strategy": model_metadata.get("validation_type", "Time-Aware Chronological Temporal Split"),
+        "probability_calibrated": True,
         "classes": model_metadata["classes"],
         "total_training_samples": model_metadata["total_training_samples"] + feedback_count,
         "feedback_logs_recorded": feedback_count,

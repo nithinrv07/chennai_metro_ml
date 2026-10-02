@@ -5,3 +5,5 @@ test-attrib-1790926772816,BL-112,Puratchi Thalaivar Dr. M.G.R Central,88.0,Low,1
 test-attrib-1790926889278,BL-112,Puratchi Thalaivar Dr. M.G.R Central,88.0,Low,1,4,1,Central attribution automated verification,2026-10-02T07:41:29.280001
 test-attrib-1790927373508,BL-112,Puratchi Thalaivar Dr. M.G.R Central,88.0,Low,1,4,1,Central attribution automated verification,2026-10-02T07:49:33.508491
 fail-test-id,BL-104,Guindy Metro Station,80.0,Moderate,1,4,1,Failure test,2026-10-02T07:49:34.141136
+test-attrib-1790930527171,BL-112,Puratchi Thalaivar Dr. M.G.R Central,88.0,Low,1,4,1,Central attribution automated verification,2026-10-02T08:42:07.172787
+fail-test-id,BL-104,Guindy Metro Station,80.0,Moderate,1,4,1,Failure test,2026-10-02T08:42:12.514922
