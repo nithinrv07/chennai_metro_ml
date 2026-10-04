@@ -4,13 +4,15 @@
  */
 
 import { BusTransit, DayPattern } from '../types';
+import { fetchWithTimeout } from './fetchWithTimeout';
+import { normalizeTrain } from './predictionState';
 
 export interface MLHealthResponse {
   status: string;
   service: string;
   model_loaded: boolean;
   model_type: string;
-  accuracy_score: number;
+  accuracy_score: number | null;
   classes: string[];
   total_training_samples: number;
   supported_stations_count: number;
@@ -18,6 +20,9 @@ export interface MLHealthResponse {
 }
 
 export interface MLPredictResponse {
+  source: 'ml' | 'gateway_fallback';
+  model_loaded: boolean;
+  fallback_reason?: string;
   station_name: string;
   hour: number;
   is_peak_hour: number;
@@ -29,7 +34,7 @@ export interface MLPredictResponse {
     Yellow: number;
     Red: number;
   };
-  confidence_score: number;
+  confidence_score: number | null;
   crowd_density_pct: number;
   boarding_probability: number;
   seats_available: number;
@@ -43,12 +48,15 @@ export interface MLPredictResponse {
 }
 
 export interface MLPredictTrainsResponse {
+  source: 'ml' | 'gateway_fallback';
+  model_loaded: boolean;
+  fallback_reason?: string;
   station_name: string;
   destination?: string;
   hour: number;
   minute: number;
   day_of_week: string;
-  ml_confidence: number;
+  ml_confidence: number | null;
   base_crowd_level: string;
   base_density_pct: number;
   trains: BusTransit[];
@@ -96,9 +104,9 @@ export interface MLFeedbackResponse {
   };
 }
 
-export async function fetchMLHealth(): Promise<MLHealthResponse | null> {
+export async function fetchMLHealth(signal?: AbortSignal): Promise<MLHealthResponse | null> {
   try {
-    const res = await fetch('/api/ml/health');
+    const res = await fetchWithTimeout('/api/ml/health', { signal });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
@@ -114,7 +122,7 @@ export async function fetchMLPredict(
   isPeak: boolean
 ): Promise<MLPredictResponse | null> {
   try {
-    const res = await fetch('/api/ml/predict', {
+    const res = await fetchWithTimeout('/api/ml/predict', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -132,49 +140,35 @@ export async function fetchMLPredict(
   }
 }
 
-export async function fetchMLTrains(
-  stationName: string,
-  destination: string,
-  hour: number,
-  minute: number,
-  dayOfWeek: string,
-  isWeekend: boolean,
-  isPeak: boolean
-): Promise<MLPredictTrainsResponse | null> {
+export type TrainFetchResult =
+  | { kind: 'ok'; data: MLPredictTrainsResponse }
+  | { kind: 'closed'; data: MLPredictTrainsResponse }
+  | { kind: 'invalid_request'; message: string; status?: number }
+  | { kind: 'unavailable'; message: string; status?: number };
+
+export async function fetchMLTrains(stationName: string, destination: string, hour: number,
+  minute: number, dayOfWeek: string, isWeekend: boolean, isPeak: boolean,
+  signal?: AbortSignal): Promise<TrainFetchResult> {
   try {
-    const res = await fetch('/api/ml/predict-trains', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        station_name: stationName,
-        destination,
-        hour,
-        minute,
-        day_of_week: dayOfWeek,
-        is_weekend: isWeekend ? 1 : 0,
-        is_peak_hour: isPeak ? 1 : 0,
-      }),
-    });
+    const res = await fetchWithTimeout('/api/ml/predict-trains', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+      body: JSON.stringify({ station_name: stationName, destination, hour, minute,
+        day_of_week: dayOfWeek, is_weekend: Number(isWeekend), is_peak_hour: Number(isPeak) })
+    }, 7000);
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}));
-      return {
-        station_name: stationName,
-        destination,
-        hour,
-        minute,
-        day_of_week: dayOfWeek,
-        ml_confidence: 0,
-        base_crowd_level: res.status === 400 ? 'Invalid Station' : 'Closed',
-        base_density_pct: 0,
-        trains: [],
-        service_status: res.status === 400 ? 'Invalid Station' : 'Closed',
-        message: errJson.detail || errJson.error || `HTTP ${res.status}`
-      };
+      const detail = typeof data.detail === 'string' ? data.detail : data.error;
+      return { kind: [400, 422].includes(res.status) ? 'invalid_request' : 'unavailable',
+        status: res.status, message: typeof detail === 'string' ? detail : `Request failed (HTTP ${res.status}).` };
     }
-    return await res.json();
+    if (!Array.isArray(data.trains) || !['ml', 'gateway_fallback'].includes(data.source)) {
+      return { kind: 'unavailable', message: 'Invalid train response received.' };
+    }
+    data.trains = data.trains.map((train: BusTransit) => normalizeTrain(train, data.source));
+    return { kind: data.service_status === 'Closed' ? 'closed' : 'ok', data };
   } catch (err) {
-    console.warn('Could not fetch ML train predictions:', err);
-    return null;
+    if (signal?.aborted) throw err;
+    return { kind: 'unavailable', message: 'Train service unavailable. Showing local estimates.' };
   }
 }
 
@@ -183,7 +177,7 @@ export async function fetchMLCrowdDNA(
   dayName: string
 ): Promise<MLCrowdDNAResponse | null> {
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `/api/ml/crowd-dna?station_name=${encodeURIComponent(stationName)}&day_name=${encodeURIComponent(dayName)}`
     );
     if (!res.ok) return null;

@@ -11,12 +11,14 @@ interface MLDiagnosticsModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentStationName: string;
+  onHealthChanged?: (health: MLHealthResponse | null) => void;
 }
 
 export const MLDiagnosticsModal: React.FC<MLDiagnosticsModalProps> = ({
   isOpen,
   onClose,
   currentStationName,
+  onHealthChanged,
 }) => {
   const [health, setHealth] = useState<MLHealthResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -41,6 +43,7 @@ export const MLDiagnosticsModal: React.FC<MLDiagnosticsModalProps> = ({
     setLoading(true);
     const data = await fetchMLHealth();
     setHealth(data);
+    onHealthChanged?.(data);
     setLoading(false);
   };
 
@@ -126,7 +129,7 @@ export const MLDiagnosticsModal: React.FC<MLDiagnosticsModalProps> = ({
               <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200">
                 <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider block">Validation Accuracy</span>
                 <span className="text-sm font-black text-emerald-700 font-mono mt-0.5 block">
-                  {health?.accuracy_score ? `${(health.accuracy_score * 100).toFixed(1)}%` : '89.3%'}
+                  {health?.model_loaded && health.accuracy_score != null ? `${(health.accuracy_score * 100).toFixed(1)}%` : 'Unavailable'}
                 </span>
                 <span className="text-[10px] text-emerald-600">Stratified 80/20 Split</span>
               </div>
@@ -276,7 +279,7 @@ export const MLDiagnosticsModal: React.FC<MLDiagnosticsModalProps> = ({
                           {testPrediction.predicted_crowd_class} ({testPrediction.crowd_level})
                         </span>
                         <span className="text-xs text-slate-500 font-mono">
-                          Confidence: {testPrediction.confidence_score}%
+                          {testPrediction.source === 'ml' ? `Model confidence: ${testPrediction.confidence_score}%` : 'Fallback estimate — model confidence unavailable'}
                         </span>
                       </div>
                     </div>

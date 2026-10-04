@@ -152,9 +152,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden md:inline font-mono text-[11px]">
               {isTa ? 'AI நிர்வாகம்' : 'Admin ML'}
             </span>
-            {isModelLoaded && (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            )}
+            <span className={`w-1.5 h-1.5 rounded-full ${isModelLoaded ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            <span className="hidden sm:inline text-[10px]">{isModelLoaded ? 'Model Ready' : 'Offline / Fallback'}</span>
           </button>
 
           {/* Profile & Singara NCMC Pill */}
@@ -182,3 +181,4 @@ export const Navbar: React.FC<NavbarProps> = ({
     </header>
   );
 };
+

@@ -82,7 +82,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 
   // Compute 3 Journey Options: Fastest, Least Crowded, Fewest Transfers
   const journeyResult = useMemo(() => {
-    return computeJourneyOptions(currentStop, selectedDestination, buses, isPeak, language);
+    try { return computeJourneyOptions(currentStop, selectedDestination, buses, isPeak, language); }
+    catch { return { options: [], estimatedStops: 0, isDirect: false }; }
   }, [currentStop, selectedDestination, buses, isPeak, language]);
 
   const activeJourneyOption = journeyResult.options.find(o => o.type === selectedJourneyType) || journeyResult.options[0];
@@ -120,7 +121,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   };
 
   // Service Closed check
-  const isClosed = !isLoading && (telemetrySource === 'closed' || (buses && buses.length === 0));
+  const isClosed = !isLoading && telemetrySource === 'closed';
 
   return (
     <div id="home-dashboard-view" className="space-y-6 pb-24 max-w-5xl mx-auto">
@@ -394,7 +395,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       ) : hasError ? (
         <div id="journey-error-banner" className="bg-rose-50 border border-rose-200 rounded-3xl p-6 text-center space-y-3">
           <AlertTriangle className="w-8 h-8 text-rose-600 mx-auto" />
-          <h2 className="text-base font-bold text-rose-900">{t.invalidStationTitle}</h2>
+          <h2 className="text-base font-bold text-rose-900">{isTa ? 'பயணத் தகவல் கிடைக்கவில்லை' : 'Journey unavailable'}</h2>
           <p className="text-xs text-rose-700">{errorMessage || t.invalidStationDesc}</p>
           {onRefresh && (
             <button
@@ -667,7 +668,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                         </h4>
                       </div>
                       <span className="text-xs font-mono text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
-                        {t.mlConfidence}: {activeTrain.confidenceScore || 96.4}%
+                        {t.mlConfidence}: {activeTrain.source === 'ml' && activeTrain.confidenceScore != null ? `${activeTrain.confidenceScore}%` : 'Unavailable (estimate)'}
                       </span>
                     </div>
 
@@ -717,7 +718,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                         <div>
                           <strong className="text-slate-900">{isTa ? 'அதிக போர்டிங் நிகழ்தகவு:' : 'High Boarding Clearance:'}</strong>{' '}
-                          {activeTrain.boardingProbability}% posterior certainty based on {currentStop.queueLength} queue count and rapid 8-door dwell cycle.
+                          {activeTrain.boardingProbability}% estimated boarding probability; platform context: {currentStop.queueLength} queue count and rapid 8-door dwell cycle.
                         </div>
                       </div>
 
@@ -852,3 +853,4 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
     </div>
   );
 };
+

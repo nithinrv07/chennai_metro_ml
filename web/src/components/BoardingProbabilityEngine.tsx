@@ -6,11 +6,14 @@ import {
   CheckCircle2, AlertCircle, Info, Sparkles, MapPin, Armchair,
   CreditCard, Compass, Star, Cpu
 } from 'lucide-react';
-import { BusTransit, RouteStop, UserProfile } from '../types';
+import { BusTransit, RouteStop, UserProfile, TelemetryDataSource } from '../types';
 import { ALL_METRO_STATIONS, NEARBY_STOPS, calculateBoardingProbability } from '../data/transitData';
 
 interface BoardingProbabilityEngineProps {
   buses: BusTransit[];
+  activeHours?: number;
+  activeMinutes?: number;
+  telemetrySource?: TelemetryDataSource;
   selectedBusId?: string;
   currentStop: RouteStop;
   profile: UserProfile;
@@ -24,6 +27,9 @@ interface BoardingProbabilityEngineProps {
 export const BoardingProbabilityEngine: React.FC<BoardingProbabilityEngineProps> = ({
   buses,
   selectedBusId,
+  activeHours = 8,
+  activeMinutes = 30,
+  telemetrySource = 'demo',
   currentStop,
   profile,
   onSelectBus,
@@ -50,21 +56,24 @@ export const BoardingProbabilityEngine: React.FC<BoardingProbabilityEngineProps>
   const selectedBus = hasTrains ? (buses.find((b) => b.id === activeBusId) || buses[0]) : null;
   const selectedStop = ALL_METRO_STATIONS.find((s) => s.id === activeStopId) || currentStop;
 
-  // Compute live CMRL ML prediction dynamically
+  useEffect(() => { setActiveBusId(selectedBusId || buses[0]?.id || ''); }, [selectedBusId, buses]);
+
+  // Backend values are authoritative unless the user changes simulation inputs.
   const currentCap = simulatedCapacity !== null ? simulatedCapacity : (selectedBus?.capacityPercentage ?? 50);
-  const timeOfDayHour = 8.5 + (simulatedTimeOffset / 60); // 8:30 AM base + offset
+  const timeOfDayHour = (activeHours + activeMinutes / 60 + simulatedTimeOffset / 60 + 24) % 24;
+  const isSimulated = simulatedCapacity !== null || simulatedQueue !== currentStop.queueLength || simulatedTimeOffset !== 0 || selectedStop.id !== currentStop.id;
 
   const mlPrediction = useMemo(() => {
-    return calculateBoardingProbability(
-      currentCap,
-      simulatedQueue,
-      selectedStop.boardingRateHistorical,
-      timeOfDayHour,
-      selectedBus?.doorsCount ?? 4
-    );
-  }, [currentCap, simulatedQueue, selectedStop.boardingRateHistorical, timeOfDayHour, selectedBus?.doorsCount]);
-
-  const isSimulated = simulatedCapacity !== null || simulatedQueue !== currentStop.queueLength || simulatedTimeOffset !== 0;
+    if (isSimulated) {
+      const estimate = calculateBoardingProbability(currentCap, simulatedQueue,
+        selectedStop.boardingRateHistorical, timeOfDayHour, selectedBus?.doorsCount ?? 4);
+      return { ...estimate, confidence: null, label: `${estimate.label} (simulation)` };
+    }
+    const probability = selectedBus?.boardingProbability ?? 0;
+    return { probability, confidence: selectedBus?.source === 'ml' ? selectedBus.confidenceScore : null,
+      tier: probability >= 80 ? 'high' : probability >= 60 ? 'moderate' : 'low',
+      label: probability >= 80 ? 'Higher boarding chance' : probability >= 60 ? 'Moderate boarding chance' : 'Lower boarding chance' };
+  }, [isSimulated, currentCap, simulatedQueue, selectedStop, timeOfDayHour, selectedBus]);
 
   const resetSimulation = () => {
     setSimulatedQueue(selectedStop.queueLength);
@@ -115,14 +124,14 @@ export const BoardingProbabilityEngine: React.FC<BoardingProbabilityEngineProps>
               </div>
             </div>
             <p className="text-xs text-slate-500 mt-1 font-medium">
-              Multi-factor ML ensemble calculating exact platform clearance likelihood across Chennai Metro lines
+              Boarding estimates for the selected train; adjust inputs to explore a simulation
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono font-bold px-3 py-1.5 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-800 flex items-center gap-2">
               <Cpu className="w-3.5 h-3.5 text-cyan-600 animate-pulse" />
-              Scikit-Learn ML Active (89.3% Acc)
+              {isSimulated ? 'What-if simulation' : telemetrySource === 'predicted' ? 'ML estimates' : 'Fallback estimates'}
             </span>
           </div>
         </div>
@@ -225,7 +234,7 @@ export const BoardingProbabilityEngine: React.FC<BoardingProbabilityEngineProps>
 
             <div className="flex items-center justify-between w-full text-xs text-slate-500 mt-4 pt-3 border-t border-slate-200 font-mono">
               <span>CMRL Confidence:</span>
-              <span className="text-slate-900 font-bold">{mlPrediction.confidence}%</span>
+              <span className="text-slate-900 font-bold">{mlPrediction.confidence != null ? `${mlPrediction.confidence}%` : 'Unavailable (estimate)'}</span>
             </div>
           </div>
 
@@ -504,16 +513,17 @@ export const BoardingProbabilityEngine: React.FC<BoardingProbabilityEngineProps>
         <Clock className="w-8 h-8" />
       </div>
       <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-black rounded-full uppercase tracking-wider inline-flex items-center gap-1.5 border border-amber-300">
-        Operations Closed
+        {telemetrySource === 'closed' ? 'Operations Closed' : 'No matching trains'}
       </span>
       <h3 className="text-xl font-black text-slate-900 mt-3">
         No Scheduled Metro Services at this Hour
       </h3>
       <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto mt-2 leading-relaxed">
-        Chennai Metro passenger services run daily between 05:00 AM and 11:00 PM. Please select an active time from the clock manager to inspect live boarding odds.
+        {telemetrySource === 'closed' ? 'Passenger services resume at 05:00 AM.' : 'Select a valid journey to inspect boarding estimates.'}
       </p>
     </div>
   )}
 </div>
 );
 };
+

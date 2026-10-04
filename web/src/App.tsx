@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Navbar } from './components/Navbar';
 import { BottomNav, NavTab } from './components/BottomNav';
@@ -19,6 +19,8 @@ import { StationSelectModal } from './components/StationSelectModal';
 import { INITIAL_BUSES, ALL_METRO_STATIONS, NEARBY_STOPS, INITIAL_PROFILE } from './data/transitData';
 import { BusTransit, UserProfile, RouteStop, Language, TelemetryDataSource } from './types';
 import { fetchMLHealth, fetchMLTrains, MLHealthResponse } from './utils/mlApi';
+import { servesJourney, planRoute } from './utils/metroNetwork';
+import { LatestRequest } from './utils/predictionState';
 import { 
   TimeMode, DayOfWeek, formatTime12h, getDayName, 
   evaluatePeakStatus, getRecalculatedTrains, computeRealArrivalTime 
@@ -72,10 +74,10 @@ export default function App() {
   const [selectedDestination, setSelectedDestination] = useState<string>('Puratchi Thalaivar Dr. M.G.R Central');
   const [currentStop, setCurrentStop] = useState<RouteStop>(ALL_METRO_STATIONS[0] || NEARBY_STOPS[0]);
   const [profile, setProfile] = useState<UserProfile>(INITIAL_PROFILE);
-  const [buses, setBuses] = useState<BusTransit[]>(INITIAL_BUSES);
+  const [buses, setBuses] = useState<BusTransit[]>([]);
 
   // Data Transparency & Network States
-  const [telemetrySource, setTelemetrySource] = useState<TelemetryDataSource>('live');
+  const [telemetrySource, setTelemetrySource] = useState<TelemetryDataSource>('demo');
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
   const [secondsAgo, setSecondsAgo] = useState<number>(0);
   const [isFetchingTrains, setIsFetchingTrains] = useState<boolean>(false);
@@ -91,6 +93,8 @@ export default function App() {
   const [showMLModal, setShowMLModal] = useState<boolean>(false);
   const [showSandboxModal, setShowSandboxModal] = useState<boolean>(false);
   const [mlHealth, setMlHealth] = useState<MLHealthResponse | null>(null);
+
+  const trainRequest = useRef(new LatestRequest());
 
   // Dynamic Live & Simulation Time Engine
   const [timeMode, setTimeMode] = useState<TimeMode>('live');
@@ -125,82 +129,71 @@ export default function App() {
   const { isPeak, peakLabel } = evaluatePeakStatus(activeHours, activeMinutes, activeDay);
   const simulatedTime = formatTime12h(activeHours, activeMinutes);
 
-  // Check ML Service health on mount
+  // Health is independent of prediction provenance and is refreshed after outages.
   useEffect(() => {
-    fetchMLHealth().then((data) => {
-      if (data) {
-        setMlHealth(data);
-        if (data.model_loaded) {
-          setTelemetrySource('predicted');
-        }
-      }
-    });
+    const controller = new AbortController();
+    const updateHealth = async () => {
+      const data = await fetchMLHealth(controller.signal);
+      if (!controller.signal.aborted) setMlHealth(data);
+    };
+    updateHealth();
+    const timer = setInterval(updateHealth, 30000);
+    return () => { clearInterval(timer); controller.abort(); };
   }, []);
 
-  // Fetch ML predictions
   const fetchTrainsData = useCallback(async () => {
+    const request = trainRequest.current.begin();
     setIsFetchingTrains(true);
     setHasFetchError(false);
     setFetchErrorMessage('');
-
+    setBuses([]);
     const isWeekend = activeDay === 'Saturday' || activeDay === 'Sunday';
-
     try {
-      // 1. Instant local optimistic calculation
-      const fallbackList = getRecalculatedTrains(activeHours, activeMinutes, activeDay, currentStop, selectedDestination);
-
-      // 2. Query Scikit-Learn ML backend
-      const mlResult = await fetchMLTrains(
-        currentStop.name,
-        selectedDestination,
-        activeHours,
-        activeMinutes,
-        activeDay,
-        isWeekend,
-        isPeak
-      );
-
+      const route = planRoute(currentStop.id, selectedDestination);
+      if (!route) throw new Error('Choose a destination different from your current station.');
+      const result = await fetchMLTrains(currentStop.name, selectedDestination, activeHours,
+        activeMinutes, activeDay, isWeekend, isPeak, request.signal);
+      if (!trainRequest.current.isCurrent(request)) return;
+      if (result.kind === 'invalid_request') {
+        setHasFetchError(true);
+        setFetchErrorMessage(result.message);
+        setTelemetrySource('demo');
+      } else if (result.kind === 'unavailable') {
+        const estimates = getRecalculatedTrains(activeHours, activeMinutes, activeDay, currentStop, selectedDestination);
+        setBuses(estimates);
+        setTelemetrySource(activeHours < 5 || activeHours >= 23 ? 'closed' : 'demo');
+        if (!estimates.length && activeHours >= 5 && activeHours < 23) {
+          setHasFetchError(true);
+          setFetchErrorMessage('No matching trains are available for this journey.');
+        }
+      } else if (result.kind === 'closed') {
+        setTelemetrySource('closed');
+      } else {
+        const compatible = result.data.trains.filter(t => servesJourney(t, currentStop.id, selectedDestination));
+        setBuses(compatible.map(t => ({ ...t,
+          realArrivalTime: t.realArrivalTime || computeRealArrivalTime(activeHours, activeMinutes, t.arrivalMinutes) })));
+        setTelemetrySource(result.data.source === 'ml' ? 'predicted' : 'demo');
+        if (!compatible.length) {
+          setHasFetchError(true);
+          setFetchErrorMessage('No matching trains are available for this journey.');
+        }
+      }
       setLastUpdateTime(Date.now());
       setSecondsAgo(0);
-
-      if (mlResult) {
-        if (mlResult.service_status === 'Closed' || (Array.isArray(mlResult.trains) && mlResult.trains.length === 0)) {
-          setBuses([]);
-          setTelemetrySource('closed');
-        } else if (mlResult.service_status === 'Invalid Station') {
-          setHasFetchError(true);
-          setFetchErrorMessage(`"${currentStop.name}" or "${selectedDestination}" is not recognized on CMRL network.`);
-          setBuses(fallbackList);
-          setTelemetrySource('demo');
-        } else if (mlResult.trains && mlResult.trains.length > 0) {
-          const enriched = mlResult.trains.map((t) => ({
-            ...t,
-            realArrivalTime: t.realArrivalTime || computeRealArrivalTime(activeHours, activeMinutes, t.arrivalMinutes),
-          }));
-          setBuses(enriched);
-          setTelemetrySource('predicted');
-        } else {
-          setBuses(fallbackList);
-          setTelemetrySource('demo');
-        }
-      } else {
-        // Fallback to local high-fidelity simulation
-        setBuses(fallbackList);
-        setTelemetrySource('demo');
-      }
     } catch (err: any) {
-      console.warn('Failed to fetch train telemetry:', err);
-      const fallbackList = getRecalculatedTrains(activeHours, activeMinutes, activeDay, currentStop, selectedDestination);
-      setBuses(fallbackList);
+      if (!trainRequest.current.isCurrent(request)) return;
+      setBuses([]);
+      setHasFetchError(true);
+      setFetchErrorMessage(err.message || 'Could not load this journey.');
       setTelemetrySource('demo');
     } finally {
-      setIsFetchingTrains(false);
+      if (trainRequest.current.isCurrent(request)) setIsFetchingTrains(false);
     }
   }, [activeHours, activeMinutes, activeDay, currentStop, selectedDestination, isPeak]);
 
-  // Recalculate on parameter changes
   useEffect(() => {
     fetchTrainsData();
+    return () => trainRequest.current.cancel();
   }, [fetchTrainsData]);
 
   const handleSelectPreset = (mode: TimeMode, hours: number, minutes: number) => {
@@ -222,6 +215,8 @@ export default function App() {
   };
 
   const handleStartTrip = (bus: BusTransit) => {
+    if (isFetchingTrains || hasFetchError || telemetrySource === 'closed' ||
+        !buses.some(t => t.id === bus.id) || !servesJourney(bus, currentStop.id, selectedDestination)) return;
     setActiveTrackingBus(bus);
   };
 
@@ -385,6 +380,8 @@ export default function App() {
                       currentStop={currentStop}
                       profile={profile}
                       destination={selectedDestination}
+                      telemetrySource={telemetrySource}
+                      isLoading={isFetchingTrains}
                       onStartTrip={handleStartTrip}
                       onOpenStationModal={() => setShowStationModal(true)}
                     />
@@ -500,6 +497,7 @@ export default function App() {
       {showMLModal && (
         <Suspense fallback={<div />}>
           <MLDiagnosticsModal
+            onHealthChanged={setMlHealth}
             isOpen={showMLModal}
             onClose={() => setShowMLModal(false)}
             currentStationName={currentStop.name}
@@ -521,6 +519,9 @@ export default function App() {
               <BoardingProbabilityEngine
                 buses={buses}
                 selectedBusId={selectedBusId}
+                activeHours={activeHours}
+                activeMinutes={activeMinutes}
+                telemetrySource={telemetrySource}
                 currentStop={currentStop}
                 profile={profile}
                 onSelectBus={(bus) => setSelectedBusId(bus.id)}
