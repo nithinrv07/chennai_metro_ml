@@ -297,7 +297,7 @@ export default function App() {
           />
 
           {/* Main Content Area */}
-          <main className="flex-1 px-4 py-5 max-w-5xl mx-auto w-full">
+          <main className="flex-1 px-3 sm:px-6 lg:px-8 py-5 w-full">
             <AnimatePresence mode="wait">
               {/* PLAN TAB: Centered around "Which journey should I take?" */}
               {activeTab === 'plan' && (

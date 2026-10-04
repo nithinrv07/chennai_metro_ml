@@ -123,7 +123,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const isClosed = !isLoading && (telemetrySource === 'closed' || (buses && buses.length === 0));
 
   return (
-    <div id="home-dashboard-view" className="space-y-6 pb-24 max-w-5xl mx-auto">
+    <div id="home-dashboard-view" className="space-y-6 pb-24 w-full">
       {/* ========================================================================= */}
       {/* 1. HERO PLANNER CARD: "WHICH JOURNEY SHOULD I TAKE?"                      */}
       {/* ========================================================================= */}

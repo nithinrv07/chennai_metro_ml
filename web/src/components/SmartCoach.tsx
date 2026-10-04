@@ -385,7 +385,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
   };
 
   return (
-    <div id="smart-coach-view" className="space-y-6 pb-24 max-w-5xl mx-auto">
+    <div id="smart-coach-view" className="space-y-6 pb-24 w-full">
       {/* Header */}
       <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

@@ -113,7 +113,7 @@ export const MetroNetworkMap: React.FC<MetroNetworkMapProps> = ({
   };
 
   return (
-    <div id="metro-network-map-view" className="space-y-6 pb-24 max-w-5xl mx-auto select-none">
+    <div id="metro-network-map-view" className="space-y-6 pb-24 w-full select-none">
       {/* Header Strip & Line Filters */}
       <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-xs select-none">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
