@@ -47,7 +47,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       id="main-navbar" 
       role="banner"
       aria-label="Chennai Metro Navigation Header"
-      className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-3 sm:px-6 lg:px-8 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
+      className="sticky top-0 shrink-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-3 sm:px-6 lg:px-8 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
     >
       <div className="w-full flex items-center justify-between gap-2 sm:gap-3">
         {/* Brand Logo & Commuter Tagline */}
@@ -152,9 +152,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden md:inline font-mono text-[11px]">
               {isTa ? 'AI நிர்வாகம்' : 'Admin ML'}
             </span>
-            {isModelLoaded && (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            )}
+            <span className={`w-1.5 h-1.5 rounded-full ${isModelLoaded ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            <span className="hidden sm:inline text-[10px]">{isModelLoaded ? 'Model Ready' : 'Offline / Fallback'}</span>
           </button>
 
           {/* Profile & Singara NCMC Pill */}
@@ -182,3 +181,4 @@ export const Navbar: React.FC<NavbarProps> = ({
     </header>
   );
 };
+

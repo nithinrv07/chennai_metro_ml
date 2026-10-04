@@ -6,55 +6,10 @@
 import { RouteStop } from '../types';
 import { ALL_METRO_STATIONS } from '../data/transitData';
 
-// True geographical North-to-South sequence for Corridor 1 (Blue Line)
-export const BLUE_LINE_STATION_IDS: string[] = [
-  'stop-wimco-nagar-depot',
-  'stop-wimco-nagar',
-  'stop-tiruvottriyur',
-  'stop-tiruvottriyur-theradi',
-  'stop-kaladipet',
-  'stop-tollgate',
-  'stop-new-washermanpet',
-  'stop-tondiarpet',
-  'stop-sir-theagaraya',
-  'stop-washermanpet',
-  'stop-mannadi',
-  'stop-high-court',
-  'stop-central',
-  'stop-govt-estate',
-  'stop-lic',
-  'stop-thousand-lights',
-  'stop-ag-dms',
-  'stop-teynampet',
-  'stop-nandanam',
-  'stop-saidapet',
-  'stop-little-mount',
-  'stop-guindy',
-  'stop-alandur',
-  'stop-nanganallur-road',
-  'stop-meenambakkam',
-  'stop-airport',
-];
+import { lines, resolveStation } from './metroNetwork';
 
-// True geographical sequence for Corridor 2 (Green Line)
-export const GREEN_LINE_STATION_IDS: string[] = [
-  'stop-central',
-  'stop-egmore',
-  'stop-nehru-park',
-  'stop-kilpauk',
-  'stop-pachaiyappas',
-  'stop-shenoy-nagar',
-  'stop-anna-nagar-east',
-  'stop-annanagar',
-  'stop-thirumangalam',
-  'stop-koyambedu',
-  'stop-arumbakkam',
-  'stop-vadapalani',
-  'stop-ashok-nagar',
-  'stop-ekkattuthangal',
-  'stop-alandur',
-  'stop-st-thomas-mount',
-];
+export const BLUE_LINE_STATION_IDS = lines.blue;
+export const GREEN_LINE_STATION_IDS = lines.green;
 
 export interface CommuterRoute {
   origin: RouteStop;
@@ -72,41 +27,10 @@ export interface CommuterRoute {
 }
 
 export function findStationByNameOrId(query: string, allStations: RouteStop[] = ALL_METRO_STATIONS): RouteStop {
-  if (!query) return allStations[0];
-  const q = query.toLowerCase().trim();
-
-  // Exact ID match
-  const byId = allStations.find(s => s.id === query);
-  if (byId) return byId;
-
-  // Exact name match
-  const byExactName = allStations.find(s => s.name.toLowerCase() === q);
-  if (byExactName) return byExactName;
-
-  // Partial name matches
-  const bySubstr = allStations.find(s => 
-    s.name.toLowerCase().includes(q) || q.includes(s.name.toLowerCase().replace(' metro station', '').replace(' station', ''))
-  );
-  if (bySubstr) return bySubstr;
-
-  // Keyword heuristic aliases
-  if (q.includes('central') || q.includes('mgr')) return allStations.find(s => s.id === 'stop-central') || allStations[0];
-  if (q.includes('airport') || q.includes('maa')) return allStations.find(s => s.id === 'stop-airport') || allStations[0];
-  if (q.includes('tidel') || q.includes('omr')) return allStations.find(s => s.id === 'stop-little-mount') || allStations[0];
-  if (q.includes('marina') || q.includes('beach')) return allStations.find(s => s.id === 'stop-govt-estate') || allStations[0];
-  if (q.includes('university') || q.includes('iit')) return allStations.find(s => s.id === 'stop-guindy') || allStations[0];
-  if (q.includes('guindy')) return allStations.find(s => s.id === 'stop-guindy') || allStations[0];
-  if (q.includes('alandur')) return allStations.find(s => s.id === 'stop-alandur') || allStations[0];
-  if (q.includes('koyambedu') || q.includes('cmbt')) return allStations.find(s => s.id === 'stop-koyambedu') || allStations[0];
-  if (q.includes('anna nagar')) return allStations.find(s => s.id === 'stop-annanagar') || allStations[0];
-  if (q.includes('thousand lights')) return allStations.find(s => s.id === 'stop-thousand-lights') || allStations[0];
-  if (q.includes('vadapalani')) return allStations.find(s => s.id === 'stop-vadapalani') || allStations[0];
-  if (q.includes('saidapet')) return allStations.find(s => s.id === 'stop-saidapet') || allStations[0];
-  if (q.includes('wimco')) return allStations.find(s => s.id === 'stop-wimco-nagar-depot') || allStations[0];
-  if (q.includes('egmore')) return allStations.find(s => s.id === 'stop-egmore') || allStations[0];
-  if (q.includes('high court') || q.includes('parrys')) return allStations.find(s => s.id === 'stop-high-court') || allStations[0];
-
-  return allStations[0];
+  const station = resolveStation(query);
+  const result = station && allStations.find(s => s.id === station.id);
+  if (!result) throw new Error(`Invalid station: ${query}`);
+  return result;
 }
 
 export function calculateCommuterRoute(
@@ -288,3 +212,4 @@ export function calculateCommuterRoute(
     activeStationIds,
   };
 }
+

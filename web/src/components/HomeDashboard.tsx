@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  TrainFront, MapPin, Sparkles, ArrowRight, 
-  Clock, CheckCircle2, AlertTriangle, Armchair, 
+import {
+  TrainFront, MapPin, Sparkles, ArrowRight,
+  Clock, CheckCircle2, AlertTriangle, Armchair,
   Compass, ChevronRight, Zap, Target, Search, BarChart3,
   CreditCard, ShieldCheck, Layers, RefreshCw, Star, Info, Radio,
   ArrowUpDown, Check, AlertCircle, ChevronDown, ChevronUp, Ticket
@@ -82,7 +82,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 
   // Compute 3 Journey Options: Fastest, Least Crowded, Fewest Transfers
   const journeyResult = useMemo(() => {
-    return computeJourneyOptions(currentStop, selectedDestination, buses, isPeak, language);
+    try { return computeJourneyOptions(currentStop, selectedDestination, buses, isPeak, language); }
+    catch { return { options: [], estimatedStops: 0, isDirect: false }; }
   }, [currentStop, selectedDestination, buses, isPeak, language]);
 
   const activeJourneyOption = journeyResult.options.find(o => o.type === selectedJourneyType) || journeyResult.options[0];
@@ -120,14 +121,14 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   };
 
   // Service Closed check
-  const isClosed = !isLoading && (telemetrySource === 'closed' || (buses && buses.length === 0));
+  const isClosed = !isLoading && telemetrySource === 'closed';
 
   return (
     <div id="home-dashboard-view" className="space-y-6 pb-24 w-full">
       {/* ========================================================================= */}
       {/* 1. HERO PLANNER CARD: "WHICH JOURNEY SHOULD I TAKE?"                      */}
       {/* ========================================================================= */}
-      <section 
+      <section
         id="hero-journey-planner-card"
         className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-7 shadow-xs relative overflow-hidden"
         aria-label="Commuter Journey Planning Section"
@@ -147,9 +148,9 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </div>
 
           {/* Data Transparency Badge & Update Timestamp */}
-          <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+          <div className="flex flex-wrap items-center gap-2 self-start md:self-center shrink-0 max-w-full">
             {/* Telemetry Status Badge */}
-            <div 
+            <div
               id="telemetry-source-badge"
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border shadow-2xs ${
                 telemetrySource === 'live'
@@ -217,9 +218,9 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         )}
 
         {/* Journey Input Form: From, Swap, To, Departure Time, CTA */}
-        <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+        <div className="mt-5 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-3 items-end">
           {/* FROM STATION (4 cols) */}
-          <div className="md:col-span-4 relative">
+          <div className="min-w-0 relative">
             <label htmlFor="planner-from-station" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
               {t.fromLabel}
             </label>
@@ -247,7 +248,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </div>
 
           {/* SWAP BUTTON (1 col on desktop, centered on mobile) */}
-          <div className="md:col-span-1 flex justify-center -my-1 md:my-0 md:pt-6">
+          <div className="flex justify-center -my-1 md:my-0 md:pb-3">
             <button
               id="swap-journey-stations-btn"
               type="button"
@@ -261,7 +262,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </div>
 
           {/* TO DESTINATION (4 cols) */}
-          <div className="md:col-span-4 relative">
+          <div className="min-w-0 relative">
             <label htmlFor="planner-to-destination" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
               {t.toLabel}
             </label>
@@ -289,16 +290,16 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </div>
 
           {/* DEPARTURE TIME & FIND BUTTON (3 cols) */}
-          <div className="md:col-span-3 flex flex-col justify-end">
+          <div className="md:col-span-3 min-w-0 flex flex-col justify-end">
             <label htmlFor="planner-time-selector" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
               {t.departLabel}
             </label>
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 id="planner-time-selector"
                 type="button"
                 onClick={onOpenTimeModal}
-                className="flex-1 p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between cursor-pointer shadow-2xs group"
+                className="min-w-0 w-full gap-3 p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between cursor-pointer shadow-2xs group"
               >
                 <div className="flex items-center gap-1.5 min-w-0">
                   <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
@@ -315,7 +316,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                 id="find-journey-btn"
                 type="button"
                 onClick={handleFindJourney}
-                className="py-3.5 px-4 bg-gradient-to-r from-[#0066B2] to-[#004b85] hover:from-[#00518f] hover:to-[#003d6d] text-white font-extrabold text-xs rounded-2xl flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/20 active:scale-95 transition-all cursor-pointer shrink-0"
+                className="min-w-0 w-full py-3.5 px-4 bg-gradient-to-r from-[#0066B2] to-[#004b85] hover:from-[#00518f] hover:to-[#003d6d] text-white font-extrabold text-xs rounded-2xl flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/20 active:scale-95 transition-all cursor-pointer shrink-0"
               >
                 {isSearching ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
@@ -394,7 +395,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       ) : hasError ? (
         <div id="journey-error-banner" className="bg-rose-50 border border-rose-200 rounded-3xl p-6 text-center space-y-3">
           <AlertTriangle className="w-8 h-8 text-rose-600 mx-auto" />
-          <h2 className="text-base font-bold text-rose-900">{t.invalidStationTitle}</h2>
+          <h2 className="text-base font-bold text-rose-900">{isTa ? 'பயணத் தகவல் கிடைக்கவில்லை' : 'Journey unavailable'}</h2>
           <p className="text-xs text-rose-700">{errorMessage || t.invalidStationDesc}</p>
           {onRefresh && (
             <button
@@ -473,9 +474,9 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                       {/* Top Badges */}
                       <div className="flex items-center justify-between gap-1.5 mb-2.5">
                         <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${
-                          isFastest 
-                            ? 'bg-blue-100 text-[#0066B2] border-blue-200' 
-                            : isLeastCrowded 
+                          isFastest
+                            ? 'bg-blue-100 text-[#0066B2] border-blue-200'
+                            : isLeastCrowded
                             ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
                             : 'bg-purple-100 text-purple-800 border-purple-200'
                         }`}>
@@ -555,8 +556,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           {/* 4. TRAIN CARD: DIRECTION, ARRIVAL, CROWD CATEGORY, 1 CLEAR ACTION          */}
           {/* ========================================================================= */}
           {activeTrain && (
-            <section 
-              id="selected-train-card" 
+            <section
+              id="selected-train-card"
               className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-7 shadow-xs relative overflow-hidden"
               aria-label="Selected Train Details and Boarding Recommendation"
             >
@@ -667,7 +668,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                         </h4>
                       </div>
                       <span className="text-xs font-mono text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
-                        {t.mlConfidence}: {activeTrain.confidenceScore || 96.4}%
+                        {t.mlConfidence}: {activeTrain.source === 'ml' && activeTrain.confidenceScore != null ? `${activeTrain.confidenceScore}%` : 'Unavailable (estimate)'}
                       </span>
                     </div>
 
@@ -717,7 +718,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                         <div>
                           <strong className="text-slate-900">{isTa ? 'அதிக போர்டிங் நிகழ்தகவு:' : 'High Boarding Clearance:'}</strong>{' '}
-                          {activeTrain.boardingProbability}% posterior certainty based on {currentStop.queueLength} queue count and rapid 8-door dwell cycle.
+                          {activeTrain.boardingProbability}% estimated boarding probability; platform context: {currentStop.queueLength} queue count and rapid 8-door dwell cycle.
                         </div>
                       </div>
 
@@ -750,7 +751,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           {/* 5. NETWORK MAP BANNER & UPCOMING TRAINS FLEET                             */}
           {/* ========================================================================= */}
           {onOpenMetroMap && (
-            <div 
+            <div
               onClick={onOpenMetroMap}
               className="bg-gradient-to-r from-[#0F172A] via-[#1E293B] to-[#0a2540] rounded-3xl p-5 sm:p-6 text-white border border-slate-800 shadow-md relative overflow-hidden cursor-pointer group hover:border-blue-500/50 transition-all"
             >
@@ -761,13 +762,13 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                   </div>
                   <div>
                     <h3 className="text-base sm:text-lg font-black text-white tracking-tight group-hover:text-blue-300 transition-colors flex items-center gap-2">
-                      {isTa ? 'சென்னை மெட்ரோ நெட்வொர்க் வரைபடம்' : 'Explore Full Chennai Metro Network Map'}
+                      {isTa ? 'உங்கள் பயண வழித்தடம்' : 'View Your Journey Route'}
                       <ChevronRight className="w-4 h-4 text-blue-400 group-hover:translate-x-1 transition-transform" />
                     </h3>
                     <p className="text-xs text-slate-300 font-medium">
-                      {isTa 
-                        ? 'நீலம் மற்றும் பச்சை வழித்தடங்களில் நிலையங்களைத் தொட்டு நேரலை ரயில்களைக் காண்க.' 
-                        : 'Tap stations along Blue & Green lines to quickly switch active stop, check real-time train positions, and plan transfers.'}
+                      {isTa
+                        ? 'பயண நிலையங்கள், வழித்தட மாற்றங்கள் மற்றும் தோராயமான பயண நேரத்தைக் காண்க.'
+                        : 'See every station in travel order, line changes, and estimated journey time.'}
                     </p>
                   </div>
                 </div>
@@ -780,7 +781,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                   }}
                   className="px-5 py-2.5 rounded-2xl bg-[#0066B2] hover:bg-blue-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all self-start sm:self-center shrink-0 cursor-pointer"
                 >
-                  <span>{isTa ? 'வரைபடத்தைத் திற' : 'Open Metro Map'}</span>
+                  <span>{isTa ? 'வழித்தடத்தைக் காண்க' : 'View Route'}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -852,3 +853,4 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
     </div>
   );
 };
+

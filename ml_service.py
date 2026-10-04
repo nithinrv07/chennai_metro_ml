@@ -43,155 +43,11 @@ TRAINING_CSV = os.path.join(BASE_DIR, "data", "processed", "training_crowd_data.
 SCHEDULE_CSV = os.path.join(BASE_DIR, "data", "processed", "schedule_features.csv")
 OD_FARE_CSV = os.path.join(BASE_DIR, "data", "processed", "od_fare_matrix.csv")
 
-# Chennai Metro Network Stations (Corridor 1 & Corridor 2)
-BLUE_LINE_STATIONS = [
-    "Wimco Nagar Depot Station",
-    "Wimco Nagar",
-    "Tiruvottriyur",
-    "Tiruvottriyur Theradi",
-    "Kaladipet",
-    "Tollgate",
-    "New Washermanpet",
-    "Tondiarpet",
-    "Sir Theagaraya College",
-    "Washermenpet Metro Station",
-    "Mannadi Metro Station",
-    "High Court Metro Station",
-    "Puratchi Thalaivar Dr. M.G.R Central",
-    "Government Estate Metro Station",
-    "LIC Metro Station",
-    "Thousand Lights Metro Station",
-    "AG-DMS Metro Station",
-    "Teynampet Metro Station",
-    "Nandanam Metro Station",
-    "Saidapet Metro Station",
-    "Little Mount Metro Station",
-    "Guindy Metro Station",
-    "Alandur Interchange Station",
-    "Nanganallur Road Station",
-    "Meenambakkam Metro Station",
-    "Chennai International Airport (MAA)"
-]
+from metro_network import NETWORK, STATIONS, resolve_station, get_candidate_trains
 
-GREEN_LINE_STATIONS = [
-    "Puratchi Thalaivar Dr. M.G.R Central",
-    "Egmore Metro Station",
-    "Nehru Park",
-    "Kilpauk",
-    "Pachaiyappas",
-    "Shenoy Nagar",
-    "Anna Nagar East",
-    "Anna Nagar Tower Station",
-    "Thirumangalam",
-    "Koyambedu CMBT Station",
-    "Arumbakkam",
-    "Vadapalani Metro Station",
-    "Ashok Nagar Metro Station",
-    "Ekkattuthangal",
-    "Alandur Interchange Station",
-    "St. Thomas Mount Metro Station"
-]
-
-ALL_KNOWN_STATIONS = list(dict.fromkeys(BLUE_LINE_STATIONS + GREEN_LINE_STATIONS))
-
-def resolve_station(query: Optional[str]) -> Optional[str]:
-    if not query:
-        return None
-    q = query.strip().lower()
-    
-    # Priority keyword & landmark mapping
-    if "tidel" in q or "omr" in q or "iit" in q or "anna university" in q:
-        return "Guindy Metro Station"
-    if "marina" in q or "govt estate" in q or "government estate" in q:
-        return "Government Estate Metro Station"
-    if "airport" in q or "maa" in q:
-        return "Chennai International Airport (MAA)"
-    if "central" in q or "mgr" in q or "puratchi thalaivar" in q:
-        return "Puratchi Thalaivar Dr. M.G.R Central"
-    if "egmore" in q:
-        return "Egmore Metro Station"
-    if "alandur" in q:
-        return "Alandur Interchange Station"
-    if "koyambedu" in q or "cmbt" in q:
-        return "Koyambedu CMBT Station"
-    if "st. thomas mount" in q or "st thomas mount" in q or "thomas mount" in q:
-        return "St. Thomas Mount Metro Station"
-    if "anna nagar tower" in q:
-        return "Anna Nagar Tower Station"
-    if "anna nagar east" in q:
-        return "Anna Nagar East"
-    if "anna nagar" in q:
-        return "Anna Nagar Tower Station"
-    if "vadapalani" in q:
-        return "Vadapalani Metro Station"
-    if "ashok nagar" in q:
-        return "Ashok Nagar Metro Station"
-    if "thousand lights" in q:
-        return "Thousand Lights Metro Station"
-    if "lic" in q:
-        return "LIC Metro Station"
-    if "saidapet" in q:
-        return "Saidapet Metro Station"
-    if "little mount" in q:
-        return "Little Mount Metro Station"
-    if "guindy" in q:
-        return "Guindy Metro Station"
-    if "meenambakkam" in q:
-        return "Meenambakkam Metro Station"
-    if "nanganallur" in q:
-        return "Nanganallur Road Station"
-    if "teynampet" in q:
-        return "Teynampet Metro Station"
-    if "nandanam" in q:
-        return "Nandanam Metro Station"
-    if "ag-dms" in q or "agdms" in q:
-        return "AG-DMS Metro Station"
-    if "wimco nagar depot" in q or "north depot" in q:
-        return "Wimco Nagar Depot Station"
-    if "wimco nagar" in q:
-        return "Wimco Nagar"
-    if "high court" in q or "parrys" in q:
-        return "High Court Metro Station"
-    if "mannadi" in q:
-        return "Mannadi Metro Station"
-    if "washermenpet" in q or "washermanpet" in q:
-        return "Washermenpet Metro Station"
-    if "ekkattuthangal" in q:
-        return "Ekkattuthangal"
-    if "arumbakkam" in q:
-        return "Arumbakkam"
-    if "thirumangalam" in q:
-        return "Thirumangalam"
-    if "shenoy nagar" in q:
-        return "Shenoy Nagar"
-    if "kilpauk" in q:
-        return "Kilpauk"
-    if "nehru park" in q:
-        return "Nehru Park"
-    if "pachaiyappas" in q:
-        return "Pachaiyappas"
-    if "tollgate" in q:
-        return "Tollgate"
-    if "kaladipet" in q:
-        return "Kaladipet"
-    if "tiruvottriyur theradi" in q:
-        return "Tiruvottriyur Theradi"
-    if "tiruvottriyur" in q:
-        return "Tiruvottriyur"
-    if "tondiarpet" in q:
-        return "Tondiarpet"
-    if "new washermanpet" in q:
-        return "New Washermanpet"
-    if "sir theagaraya" in q:
-        return "Sir Theagaraya College"
-    
-    clean_q = q.replace(" metro station", "").replace(" station", "").replace(" interchange", "").strip()
-    for st in ALL_KNOWN_STATIONS:
-        st_clean = st.lower().replace(" metro station", "").replace(" station", "").replace(" interchange", "").strip()
-        if clean_q == st_clean or clean_q in st.lower() or st_clean in clean_q:
-            return st
-            
-    return None
+BLUE_LINE_STATIONS = [STATIONS[s]['name'] for s in NETWORK['lines']['blue']]
+GREEN_LINE_STATIONS = [STATIONS[s]['name'] for s in NETWORK['lines']['green']]
+ALL_KNOWN_STATIONS = [s['name'] for s in STATIONS.values()]
 
 # Global ML Pipeline
 ml_model = None
@@ -372,8 +228,8 @@ class PredictTrainsRequest(BaseModel):
     hour: int = Field(8, ge=0, le=23)
     minute: int = Field(30, ge=0, le=59)
     day_of_week: Optional[str] = "Monday"
-    is_weekend: Optional[int] = 0
-    is_peak_hour: Optional[int] = 1
+    is_weekend: int = Field(0, ge=0, le=1)
+    is_peak_hour: int = Field(1, ge=0, le=1)
 
 class TripFeedbackRequest(BaseModel):
     tripId: Optional[str] = None
@@ -448,16 +304,16 @@ def get_health():
             pass
 
     return {
-        "status": "ok",
+        "status": "ok" if ml_model is not None else "unavailable",
         "service": "Chennai Metro ML Engine",
         "model_loaded": ml_model is not None,
         "model_type": model_metadata["model_type"],
-        "accuracy_score": model_metadata["accuracy_score"],
+        "accuracy_score": model_metadata["accuracy_score"] if ml_model is not None else None,
         "macro_f1_score": model_metadata.get("macro_f1_score", 0.8692),
         "baseline_accuracy": model_metadata.get("baseline_accuracy", 0.5951),
         "baseline_macro_f1": model_metadata.get("baseline_macro_f1", 0.2487),
         "validation_strategy": model_metadata.get("validation_type", "Time-Aware Chronological Temporal Split"),
-        "probability_calibrated": True,
+        "probability_calibrated": ml_model is not None,
         "classes": model_metadata["classes"],
         "total_training_samples": model_metadata["total_training_samples"] + feedback_count,
         "feedback_logs_recorded": feedback_count,
@@ -518,7 +374,9 @@ def predict_crowd(req: PredictRequest):
             "coach_breakdown": metrics["coach_breakdown"],
             "crowd_breakdown": metrics["coach_breakdown"],
             "recommendations": recommendations,
-            "model_engine": "RandomForestClassifier(n_estimators=60)"
+            "source": "ml",
+            "model_loaded": True,
+            "model_engine": model_metadata["model_type"]
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction inference failed: {str(e)}")
@@ -531,285 +389,9 @@ def compute_real_arrival_time(hours: int, minutes: int, arrival_minutes: int) ->
     h12 = 12 if arr_h % 12 == 0 else arr_h % 12
     return f"{h12:02d}:{arr_m:02d} {period}"
 
-def get_candidate_trains(origin: str, destination: str, is_peak_hour: bool) -> List[Dict[str, Any]]:
-    b_orig = BLUE_LINE_STATIONS.index(origin) if origin in BLUE_LINE_STATIONS else -1
-    g_orig = GREEN_LINE_STATIONS.index(origin) if origin in GREEN_LINE_STATIONS else -1
-    b_dest = BLUE_LINE_STATIONS.index(destination) if destination in BLUE_LINE_STATIONS else -1
-    g_dest = GREEN_LINE_STATIONS.index(destination) if destination in GREEN_LINE_STATIONS else -1
-
-    dest_short = (
-        destination.replace(" Metro Station", "")
-        .replace(" Station", "")
-        .replace(" (MAA)", "")
-        .replace("Puratchi Thalaivar Dr. M.G.R ", "")
-        .strip()
-    )
-
-    is_blue_line = True
-    is_southbound = True
-    dest_display = destination
-    transfer_info = ""
-
-    # Case 1: Both stations on Blue Line (Direct Blue Line)
-    if b_orig != -1 and b_dest != -1 and (g_orig == -1 or g_dest == -1 or (b_orig == 12 and b_dest > 0) or (b_orig == 22 and b_dest == 25)):
-        is_blue_line = True
-        is_southbound = b_orig <= b_dest
-        dest_display = destination if destination != origin else ("Chennai International Airport (MAA)" if is_southbound else "Puratchi Thalaivar Dr. M.G.R Central")
-
-    # Case 2: Both stations on Green Line (Direct Green Line)
-    elif g_orig != -1 and g_dest != -1:
-        is_blue_line = False
-        is_southbound = g_orig <= g_dest
-        dest_display = destination if destination != origin else ("St. Thomas Mount Metro Station" if is_southbound else "Puratchi Thalaivar Dr. M.G.R Central")
-
-    # Case 3: Origin on Blue Line, Destination on Green Line (Transfer required)
-    elif b_orig != -1 and g_dest != -1:
-        stops_via_central = abs(b_orig - 12) + abs(g_dest - 0)
-        stops_via_alandur = abs(b_orig - 22) + abs(g_dest - 14)
-
-        if stops_via_central <= stops_via_alandur:
-            if b_orig == 12: # Origin IS Central
-                is_blue_line = False
-                is_southbound = 0 <= g_dest
-                dest_display = destination
-            else:
-                is_blue_line = True
-                is_southbound = b_orig < 12
-                dest_display = f"Puratchi Thalaivar Dr. M.G.R Central (Transfer for {dest_short})"
-                transfer_info = f"Transfer at Central Platform 1 for Green Line to {dest_short}"
-        else:
-            if b_orig == 22: # Origin IS Alandur
-                is_blue_line = False
-                is_southbound = 14 <= g_dest
-                dest_display = destination
-            else:
-                is_blue_line = True
-                is_southbound = b_orig < 22
-                dest_display = f"Alandur Interchange Station (Transfer for {dest_short})"
-                transfer_info = f"Transfer at Alandur Level 2 for Green Line to {dest_short}"
-
-    # Case 4: Origin on Green Line, Destination on Blue Line (Transfer required)
-    elif g_orig != -1 and b_dest != -1:
-        stops_via_central = abs(g_orig - 0) + abs(b_dest - 12)
-        stops_via_alandur = abs(g_orig - 14) + abs(b_dest - 22)
-
-        if stops_via_central <= stops_via_alandur:
-            if g_orig == 0: # Origin IS Central
-                is_blue_line = True
-                is_southbound = 12 <= b_dest
-                dest_display = destination
-            else:
-                is_blue_line = False
-                is_southbound = False # Towards Central (index 0) is Northbound
-                dest_display = f"Puratchi Thalaivar Dr. M.G.R Central (Transfer for {dest_short})"
-                transfer_info = f"Transfer at Central Underground for Blue Line to {dest_short}"
-        else:
-            if g_orig == 14: # Origin IS Alandur
-                is_blue_line = True
-                is_southbound = 22 <= b_dest
-                dest_display = destination
-            else:
-                is_blue_line = False
-                is_southbound = g_orig < 14
-                dest_display = f"Alandur Interchange Station (Transfer for {dest_short})"
-                transfer_info = f"Transfer at Alandur Level 1 for Blue Line to {dest_short}"
-
-    # Fallback for unrecognized combinations
-    else:
-        is_blue_line = "airport" in destination.lower() or "guindy" in destination.lower()
-        is_southbound = True
-        dest_display = destination
-
-    # Build Candidate Train Objects
-    if is_blue_line:
-        if is_southbound:
-            dest_name = dest_display if ("Airport" in dest_display or "Central" in dest_display or transfer_info) else f"{dest_display} (Southbound)"
-            plat_target = "Central / Airport" if (b_dest == 12 or dest_short == "Central") else "Airport"
-            return [
-                {
-                    "id": "train-bl-101",
-                    "routeNumber": "BL-101",
-                    "name": f"Blue Line • {plat_target} Express (Southbound)",
-                    "lineType": "Blue Line",
-                    "lineColor": "blue",
-                    "destination": dest_name,
-                    "currentLocation": f"Approaching {origin} on Track 1",
-                    "nextStop": origin,
-                    "arrivalMinutes": 2 if is_peak_hour else 4,
-                    "historicalSuccessRate": 95,
-                    "fare": "₹40",
-                    "acStatus": "Full AC",
-                    "doorsCount": 4,
-                    "platformNumber": f"Platform 1 (Southbound towards {plat_target})",
-                    "wheelchairAccessible": True,
-                    "coachCoachType": "electric_rapid",
-                    "base_modifier": 0.90,
-                    "coachReason": (f"Direct Southbound train towards {dest_short}. {transfer_info}").strip()
-                },
-                {
-                    "id": "train-bl-103",
-                    "routeNumber": "BL-103",
-                    "name": f"Blue Line • {plat_target} Rapid (Southbound)",
-                    "lineType": "Blue Line",
-                    "lineColor": "blue",
-                    "destination": dest_name,
-                    "currentLocation": "Saidapet Overhead Corridor",
-                    "nextStop": origin,
-                    "arrivalMinutes": 7 if is_peak_hour else 9,
-                    "historicalSuccessRate": 92,
-                    "fare": "₹40",
-                    "acStatus": "Full AC",
-                    "doorsCount": 4,
-                    "platformNumber": f"Platform 1 (Southbound towards {plat_target})",
-                    "wheelchairAccessible": True,
-                    "coachCoachType": "electric_rapid",
-                    "base_modifier": 0.70,
-                    "coachReason": (f"Follow-up Southbound rake. High seating availability in Coach 4. {transfer_info}").strip()
-                }
-            ]
-        else:
-            is_wimco_bound = b_dest < 12 and b_dest != -1
-            dest_name = dest_display if ("Central" in dest_display or "Wimco" in dest_display or transfer_info) else f"{dest_display} (Northbound)"
-            plat_target = "Wimco Nagar" if is_wimco_bound else "Central"
-            train_name_label = f"Blue Line • {plat_target} Express (Northbound)"
-            return [
-                {
-                    "id": "train-bl-104",
-                    "routeNumber": "BL-104",
-                    "name": train_name_label,
-                    "lineType": "Blue Line",
-                    "lineColor": "blue",
-                    "destination": dest_name,
-                    "currentLocation": f"Approaching {origin} on Track 2",
-                    "nextStop": origin,
-                    "arrivalMinutes": 2 if is_peak_hour else 4,
-                    "historicalSuccessRate": 93,
-                    "fare": "₹40",
-                    "acStatus": "Full AC",
-                    "doorsCount": 4,
-                    "platformNumber": f"Platform 2 (Northbound towards {plat_target})",
-                    "wheelchairAccessible": True,
-                    "coachCoachType": "electric_rapid",
-                    "base_modifier": 1.0,
-                    "coachReason": (f"Northbound train towards {plat_target}. {transfer_info}").strip()
-                },
-                {
-                    "id": "train-bl-112",
-                    "routeNumber": "BL-112",
-                    "name": "Blue Line • Wimco Nagar Rapid (Northbound)",
-                    "lineType": "Blue Line",
-                    "lineColor": "blue",
-                    "destination": "Wimco Nagar Depot Station",
-                    "currentLocation": "Approaching station",
-                    "nextStop": origin,
-                    "arrivalMinutes": 8 if is_peak_hour else 11,
-                    "historicalSuccessRate": 97,
-                    "fare": "₹50",
-                    "acStatus": "Full AC",
-                    "doorsCount": 4,
-                    "platformNumber": "Platform 2 (Northbound towards Wimco Nagar)",
-                    "wheelchairAccessible": True,
-                    "coachCoachType": "electric_rapid",
-                    "base_modifier": 0.65,
-                    "coachReason": (f"Northbound rake with 50+ open seats. {transfer_info}").strip()
-                }
-            ]
-    else:
-        # Green Line
-        if is_southbound:
-            dest_name = dest_display if ("Mount" in dest_display or "Koyambedu" in dest_display or "Egmore" in dest_display or transfer_info) else f"{dest_display} (Southbound)"
-            return [
-                {
-                    "id": "train-gl-214",
-                    "routeNumber": "GL-214",
-                    "name": "Green Line • Alandur Express (Southbound)" if transfer_info else f"Green Line • {dest_short} Direct (Southbound)",
-                    "lineType": "Green Line",
-                    "lineColor": "green",
-                    "destination": dest_name,
-                    "currentLocation": f"Approaching {origin} on Track 1",
-                    "nextStop": origin,
-                    "arrivalMinutes": 3 if is_peak_hour else 5,
-                    "historicalSuccessRate": 86,
-                    "fare": "₹30",
-                    "acStatus": "Full AC",
-                    "doorsCount": 4,
-                    "platformNumber": "Platform 1 (Southbound towards Alandur)" if transfer_info else "Platform 1 (Southbound towards St. Thomas Mount)",
-                    "wheelchairAccessible": True,
-                    "coachCoachType": "electric_rapid",
-                    "base_modifier": 0.95,
-                    "coachReason": (f"Direct Green Line train Southbound towards {dest_short}. {transfer_info}").strip()
-                },
-                {
-                    "id": "train-gl-206",
-                    "routeNumber": "GL-206",
-                    "name": "Green Line • Koyambedu / Alandur Shuttle",
-                    "lineType": "Green Line",
-                    "lineColor": "green",
-                    "destination": "Koyambedu CMBT Station",
-                    "currentLocation": "In-transit Corridor",
-                    "nextStop": origin,
-                    "arrivalMinutes": 8 if is_peak_hour else 11,
-                    "historicalSuccessRate": 90,
-                    "fare": "₹30",
-                    "acStatus": "Full AC",
-                    "doorsCount": 4,
-                    "platformNumber": "Platform 1 (Southbound towards Koyambedu)",
-                    "wheelchairAccessible": True,
-                    "coachCoachType": "electric_rapid",
-                    "base_modifier": 0.80,
-                    "coachReason": (f"Southbound rake heading towards CMBT & Alandur. {transfer_info}").strip()
-                }
-            ]
-        else:
-            dest_name = dest_display if ("Central" in dest_display or transfer_info) else f"{dest_display} (Northbound towards Central)"
-            return [
-                {
-                    "id": "train-gl-208",
-                    "routeNumber": "GL-208",
-                    "name": f"Green Line • {dest_short} / Central Express (Northbound)",
-                    "lineType": "Green Line",
-                    "lineColor": "green",
-                    "destination": dest_name,
-                    "currentLocation": f"Approaching {origin} on Track 2",
-                    "nextStop": origin,
-                    "arrivalMinutes": 4 if is_peak_hour else 6,
-                    "historicalSuccessRate": 88,
-                    "fare": "₹40",
-                    "acStatus": "Full AC",
-                    "doorsCount": 4,
-                    "platformNumber": "Platform 2 (Northbound towards Central)",
-                    "wheelchairAccessible": True,
-                    "coachCoachType": "electric_rapid",
-                    "base_modifier": 1.15,
-                    "coachReason": (f"Green Line Northbound towards {dest_short} and Central. {transfer_info}").strip()
-                },
-                {
-                    "id": "train-gl-202",
-                    "routeNumber": "GL-202",
-                    "name": "Green Line • Central Express (Northbound)",
-                    "lineType": "Green Line",
-                    "lineColor": "green",
-                    "destination": dest_name,
-                    "currentLocation": "In-transit Corridor",
-                    "nextStop": origin,
-                    "arrivalMinutes": 9 if is_peak_hour else 12,
-                    "historicalSuccessRate": 94,
-                    "fare": "₹40",
-                    "acStatus": "Full AC",
-                    "doorsCount": 4,
-                    "platformNumber": "Platform 2 (Northbound towards Central)",
-                    "wheelchairAccessible": True,
-                    "coachCoachType": "electric_rapid",
-                    "base_modifier": 0.85,
-                    "coachReason": (f"Northbound rake heading directly to Central. {transfer_info}").strip()
-                }
-            ]
-
 @app.post("/api/ml/predict-trains")
 def predict_trains(req: PredictTrainsRequest):
-    if ml_model is None:
-        raise HTTPException(status_code=503, detail="ML model is not loaded yet")
-
+    # Validate input and service hours independently of model availability.
     # 1. Validate station
     st_canonical = resolve_station(req.station_name)
     if not st_canonical:
@@ -818,15 +400,23 @@ def predict_trains(req: PredictTrainsRequest):
             detail=f"Invalid station: '{req.station_name}'. Please specify a valid station in the Chennai Metro network."
         )
 
+    dest_canonical = resolve_station(req.destination)
+    if not dest_canonical:
+        raise HTTPException(status_code=400, detail=f"Invalid destination: '{req.destination}'.")
+    if st_canonical == dest_canonical:
+        raise HTTPException(status_code=400, detail="Origin and destination are the same station. Choose a different destination.")
+
     # 2. Enforce operating hours (05:00 to 23:00)
     if req.hour < 5 or req.hour >= 23:
         return {
             "station_name": st_canonical,
-            "destination": req.destination or "Puratchi Thalaivar Dr. M.G.R Central",
+            "destination": dest_canonical,
+            "source": "ml",
+            "model_loaded": ml_model is not None,
             "hour": req.hour,
             "minute": req.minute,
             "day_of_week": req.day_of_week,
-            "ml_confidence": 0.0,
+            "ml_confidence": None,
             "base_crowd_level": "Closed",
             "base_density_pct": 0,
             "trains": [],
@@ -834,8 +424,8 @@ def predict_trains(req: PredictTrainsRequest):
             "message": "Chennai Metro is closed between 23:00 and 05:00. Operations resume at 05:00 AM."
         }
 
-    # 3. Resolve destination
-    dest_canonical = resolve_station(req.destination) or "Puratchi Thalaivar Dr. M.G.R Central"
+    if ml_model is None:
+        raise HTTPException(status_code=503, detail="ML model is not loaded yet")
 
     # 4. Generate candidate trains tailored to station service, line, direction, and destination
     candidate_trains = get_candidate_trains(st_canonical, dest_canonical, bool(req.is_peak_hour))
@@ -899,7 +489,7 @@ def predict_trains(req: PredictTrainsRequest):
                 }
             ]
 
-            is_winner = (i == 0 if adjusted_prob >= 70 else (train["routeNumber"] in ["BL-112", "BL-103", "GL-202"] or i == 0))
+            is_winner = i == 0
             enriched_trains.append({
                 **train,
                 "realArrivalTime": real_arrival,
@@ -908,6 +498,7 @@ def predict_trains(req: PredictTrainsRequest):
                 "capacityPercentage": adjusted_density,
                 "seatsAvailable": seats,
                 "confidenceScore": base_confidence,
+                "source": "ml",
                 "totalCapacity": 240,
                 "crowdBreakdown": {
                     "front": front_c,
@@ -925,6 +516,9 @@ def predict_trains(req: PredictTrainsRequest):
             })
 
         return {
+            "source": "ml",
+            "model_loaded": True,
+            "service_status": "Available",
             "station_name": st_canonical,
             "destination": dest_canonical,
             "hour": req.hour,

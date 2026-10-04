@@ -1,6 +1,8 @@
 import { BusTransit, RouteStop, JourneyOption, Language } from '../types';
 import { ALL_METRO_STATIONS, POPULAR_DESTINATIONS } from '../data/transitData';
 import { translations } from './translations';
+import { calculateCommuterRoute } from './routePlanner';
+import { servesJourney } from './metroNetwork';
 
 export interface JourneyCalculationResult {
   options: JourneyOption[];
@@ -11,101 +13,12 @@ export interface JourneyCalculationResult {
   estimatedStops: number;
 }
 
-// Canonical station lists to determine line membership
-const BLUE_LINE_STATION_NAMES = [
-  'Wimco Nagar Depot Station',
-  'Wimco Nagar Metro Station',
-  'Tiruvottriyur Metro Station',
-  'Tiruvottriyur Theradi Station',
-  'Kaladipet Metro Station',
-  'Tollgate Metro Station',
-  'New Washermanpet Station',
-  'Tondiarpet Metro Station',
-  'Sir Theagaraya College Station',
-  'Washermanpet Metro Station',
-  'Mannadi Metro Station',
-  'High Court Metro Station',
-  'Puratchi Thalaivar Dr. M.G.R Central',
-  'Government Estate Metro Station',
-  'LIC Metro Station',
-  'Thousand Lights Metro Station',
-  'AG-DMS Metro Station',
-  'Teynampet Metro Station',
-  'Nandanam Metro Station',
-  'Saidapet Metro Station',
-  'Little Mount Metro Station',
-  'Guindy Metro Station',
-  'Alandur Interchange Station',
-  'Nanganallur Road Station',
-  'Meenambakkam Metro Station',
-  'Chennai International Airport (MAA)'
-];
-
-const GREEN_LINE_STATION_NAMES = [
-  'Puratchi Thalaivar Dr. M.G.R Central',
-  'Chennai Egmore Metro Station',
-  'Nehru Park Metro Station',
-  'Kilpauk Medical College Station',
-  "Pachaiyappa's College Station",
-  'Shenoy Nagar Metro Station',
-  'Anna Nagar East Metro Station',
-  'Anna Nagar Tower Station',
-  'Thirumangalam Metro Station',
-  'Koyambedu Metro Station',
-  'CMBT Metro Station',
-  'Arumbakkam Metro Station',
-  'Vadapalani Metro Station',
-  'Ashok Nagar Metro Station',
-  'Ekkattuthangal Metro Station',
-  'Alandur Interchange Station',
-  'St. Thomas Mount Metro Station'
-];
-
-/**
- * Calculate dynamic travel duration and fare between stations
- */
+/** Estimates use the same station sequence and interchange as route selection. */
 export function estimateFareAndDuration(fromName: string, toName: string) {
-  // Approximate station count
-  let stops = 6;
-  const fromClean = fromName.toLowerCase();
-  const toClean = toName.toLowerCase();
-
-  const isFromBlue = BLUE_LINE_STATION_NAMES.some(s => s.toLowerCase().includes(fromClean) || fromClean.includes(s.toLowerCase().split(' ')[0]));
-  const isToBlue = BLUE_LINE_STATION_NAMES.some(s => s.toLowerCase().includes(toClean) || toClean.includes(s.toLowerCase().split(' ')[0]));
-  const isFromGreen = GREEN_LINE_STATION_NAMES.some(s => s.toLowerCase().includes(fromClean) || fromClean.includes(s.toLowerCase().split(' ')[0]));
-  const isToGreen = GREEN_LINE_STATION_NAMES.some(s => s.toLowerCase().includes(toClean) || toClean.includes(s.toLowerCase().split(' ')[0]));
-
-  const direct = (isFromBlue && isToBlue) || (isFromGreen && isToGreen);
-
-  if (toClean.includes('airport') || fromClean.includes('airport')) {
-    stops = 8;
-  } else if (toClean.includes('central') || fromClean.includes('central')) {
-    stops = direct ? 7 : 11;
-  } else if (toClean.includes('egmore') || toClean.includes('koyambedu')) {
-    stops = 5;
-  } else if (toClean.includes('wimco') || toClean.includes('high court')) {
-    stops = 12;
-  }
-
-  // Chennai Metro Fare slab: 0-2 km: ₹10, 2-4 km: ₹20, 4-9 km: ₹30, 9-18 km: ₹40, >18 km: ₹50
-  let standardFare = 40;
-  if (stops <= 3) standardFare = 20;
-  else if (stops <= 6) standardFare = 30;
-  else if (stops <= 10) standardFare = 40;
-  else standardFare = 50;
-
-  const singaraDiscount = Math.round(standardFare * 0.8);
-
-  const durationMin = Math.max(10, Math.round(stops * 2.2 + (direct ? 0 : 5)));
-
-  return {
-    stops,
-    durationMin,
-    standardFare: `₹${standardFare}`,
-    singaraFare: `₹${singaraDiscount}`,
-    isDirect: direct,
-    transferStation: direct ? undefined : (fromClean.includes('airport') || fromClean.includes('guindy') ? 'Alandur Interchange Station' : 'Puratchi Thalaivar Dr. M.G.R Central'),
-  };
+  const route = calculateCommuterRoute(fromName, toName);
+  return { stops: route.stopCount, durationMin: route.estimatedMinutes,
+    standardFare: `₹${route.fareINR}`, singaraFare: `₹${route.fareSingaraINR}`,
+    isDirect: route.isDirect, transferStation: route.interchangeStation?.name };
 }
 
 export function computeJourneyOptions(
@@ -125,32 +38,12 @@ export function computeJourneyOptions(
                    POPULAR_DESTINATIONS.find(d => d.name.toLowerCase() === destinationName.toLowerCase()) || 
                    { name: destinationName, tamilName: '' };
 
-  const validBuses = buses && buses.length > 0 ? buses : [];
-  const primaryTrain = validBuses[0] || {
-    id: 'TR-FALLBACK-1',
-    routeNumber: 'BL-104',
-    name: 'Blue Line Express',
-    lineType: 'Blue Line',
-    lineColor: 'blue',
-    destination: destinationName,
-    currentLocation: originStation.name,
-    nextStop: 'Next Station',
-    arrivalMinutes: 2,
-    boardingProbability: isPeak ? 74 : 94,
-    crowdLevel: isPeak ? 'Moderate' : 'Low',
-    capacityPercentage: isPeak ? 68 : 34,
-    seatsAvailable: isPeak ? 18 : 36,
-    totalCapacity: 1200,
-    historicalSuccessRate: 92,
-    confidenceScore: 96,
-    fare: standardFare,
-    acStatus: 'Full AC',
-    doorsCount: 8,
-    wheelchairAccessible: true,
-    platformNumber: 'Platform 2',
-    crowdBreakdown: { front: 40, middle: 70, rear: 32 },
-    factors: [],
+  const validBuses = (buses || []).filter(t => servesJourney(t, originStation.id, destinationName));
+  if (!validBuses.length) return {
+    options: [], bestOption: undefined, originStation, destinationStation: destStop,
+    isDirect, estimatedStops: stops
   };
+  const primaryTrain = validBuses[0];
 
   // Find least crowded train (highest probability or seats)
   const leastCrowdedTrain = [...validBuses].sort((a, b) => b.boardingProbability - a.boardingProbability)[0] || primaryTrain;
@@ -198,9 +91,9 @@ export function computeJourneyOptions(
       ? (lang === 'ta' ? 'அமைதியான பெட்டி - நேரடி பயணம்' : 'Low density direct rake (0 transfers)')
       : (lang === 'ta' ? `1 இடமாற்றம் (${transferStation} இல்)` : `1 transfer at ${transferStation}`),
     train: leastCrowdedTrain,
-    crowdLevel: 'Low',
-    boardingProbability: Math.min(99, leastCrowdedTrain.boardingProbability + 6),
-    coachRecommendation: lang === 'ta' ? 'பெட்டி 1 (பெண்கள் / முன் பகுதி) அல்லது பெட்டி 4 - 30+ காலி இருக்கைகள்' : 'Coach 1 (Front DMC1) or Coach 4 - 30+ vacant seats',
+    crowdLevel: leastCrowdedTrain.crowdLevel,
+    boardingProbability: leastCrowdedTrain.boardingProbability,
+    coachRecommendation: lang === 'ta' ? 'பெட்டி 1 (பெண்கள் / முன் பகுதி) அல்லது பெட்டி 4 - 30+ காலி இருக்கைகள்' : 'Compare coach occupancy before boarding',
   };
 
   // 3. FEWEST TRANSFERS ROUTE
@@ -240,3 +133,4 @@ export function computeJourneyOptions(
     estimatedStops: stops,
   };
 }
+

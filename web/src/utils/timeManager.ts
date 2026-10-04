@@ -1,6 +1,6 @@
 import { BusTransit, CrowdDNAPoint, DayPattern, MetroLineType, RouteStop } from '../types';
-import { INITIAL_BUSES, CROWD_DNA_WEEKLY } from '../data/transitData';
-import { BLUE_LINE_STATION_IDS, GREEN_LINE_STATION_IDS, findStationByNameOrId } from './routePlanner';
+import { CROWD_DNA_WEEKLY } from '../data/transitData';
+import { getSimulationTrains } from './metroNetwork';
 
 export type TimeMode = 'live' | 'rush_morning' | 'optimal_morning' | 'afternoon_calm' | 'rush_evening' | 'night_shift' | 'custom';
 
@@ -111,6 +111,10 @@ export function evaluatePeakStatus(hours: number, minutes: number, dayName: DayO
   const timeDecimal = hours + minutes / 60;
   const isWeekend = dayName === 'Saturday' || dayName === 'Sunday';
 
+  if (timeDecimal < 5 || timeDecimal >= 23) {
+    return { isPeak: false, peakLabel: 'Metro Closed (05:00 - 23:00)', peakBadgeType: 'night' };
+  }
+
   if (isWeekend) {
     if (timeDecimal >= 12.5 && timeDecimal <= 16.0) {
       return { isPeak: true, peakLabel: 'Weekend Mall & Marina Peak', peakBadgeType: 'peak' };
@@ -140,10 +144,6 @@ export function evaluatePeakStatus(hours: number, minutes: number, dayName: DayO
     return { isPeak: true, peakLabel: 'Evening Rush Hour', peakBadgeType: 'peak' };
   }
 
-  if (timeDecimal < 5.0 || timeDecimal >= 23.0) {
-    return { isPeak: false, peakLabel: 'Metro Closed (05:00 - 23:00)', peakBadgeType: 'night' };
-  }
-
   if (timeDecimal >= 21.5 || timeDecimal < 6.0) {
     return { isPeak: false, peakLabel: 'Late Night / Early Rake', peakBadgeType: 'night' };
   }
@@ -151,274 +151,11 @@ export function evaluatePeakStatus(hours: number, minutes: number, dayName: DayO
   return { isPeak: false, peakLabel: 'Afternoon Low Load', peakBadgeType: 'optimal' };
 }
 
-/**
- * Dynamically adjust trains according to active time, day & current station
- */
-export function getRecalculatedTrains(
-  hours: number, 
-  minutes: number, 
-  dayName: DayOfWeek,
-  currentStop?: RouteStop,
-  destinationName?: string
-): BusTransit[] {
-  // Chennai Metro operating hours: 05:00 to 23:00
-  if (hours < 5 || hours >= 23) {
-    return [];
-  }
-
-  const { isPeak, peakBadgeType } = evaluatePeakStatus(hours, minutes, dayName);
-  const stationName = currentStop?.name || 'Guindy Metro Station';
-  const stationQueue = currentStop?.queueLength || 12;
-  const stationBoardingRate = currentStop?.boardingRateHistorical || 91;
-
-  return INITIAL_BUSES.map((bus) => {
-    let cap = bus.capacityPercentage;
-    let prob = bus.boardingProbability;
-    let seats = bus.seatsAvailable;
-    let crowd: 'Low' | 'Moderate' | 'High' | 'Very High' | 'Overflowing' = bus.crowdLevel;
-    let eta = bus.arrivalMinutes;
-    const breakdown = bus.crowdBreakdown || (bus as any).coachBreakdown || { front: 45, middle: 75, rear: 35 };
-    let front = breakdown.front;
-    let middle = breakdown.middle;
-    let rear = breakdown.rear;
-
-    if (bus.id === 'train-bl-104') {
-      if (isPeak) {
-        cap = 76;
-        prob = Math.min(95, Math.max(50, Math.round(stationBoardingRate * 0.95)));
-        seats = 22;
-        crowd = 'Moderate';
-        eta = 2;
-        front = 72;
-        middle = 86;
-        rear = 48;
-      } else if (peakBadgeType === 'optimal') {
-        cap = 35;
-        prob = Math.min(99, Math.max(80, Math.round(stationBoardingRate * 1.05)));
-        seats = 48;
-        crowd = 'Low';
-        eta = 4;
-        front = 25;
-        middle = 42;
-        rear = 20;
-      } else if (peakBadgeType === 'night') {
-        cap = 18;
-        prob = 99;
-        seats = 65;
-        crowd = 'Low';
-        eta = 8;
-        front = 12;
-        middle = 20;
-        rear = 15;
-      } else {
-        cap = 28;
-        prob = 98;
-        seats = 56;
-        crowd = 'Low';
-        eta = 5;
-        front = 20;
-        middle = 32;
-        rear = 18;
-      }
-    } else if (bus.id === 'train-gl-208') {
-      if (isPeak) {
-        cap = 88;
-        prob = Math.min(85, Math.max(45, Math.round(stationBoardingRate * 0.72)));
-        seats = 6;
-        crowd = 'High';
-        eta = 6;
-        front = 92;
-        middle = 96;
-        rear = 78;
-      } else if (peakBadgeType === 'optimal') {
-        cap = 42;
-        prob = Math.min(96, Math.max(75, Math.round(stationBoardingRate * 1.02)));
-        seats = 38;
-        crowd = 'Low';
-        eta = 7;
-        front = 35;
-        middle = 50;
-        rear = 30;
-      } else if (peakBadgeType === 'night') {
-        cap = 15;
-        prob = 99;
-        seats = 70;
-        crowd = 'Low';
-        eta = 12;
-        front = 10;
-        middle = 16;
-        rear = 12;
-      } else {
-        cap = 32;
-        prob = 96;
-        seats = 48;
-        crowd = 'Low';
-        eta = 8;
-        front = 25;
-        middle = 38;
-        rear = 24;
-      }
-    } else if (bus.id === 'train-bl-112') {
-      if (isPeak) {
-        cap = 45;
-        prob = Math.min(98, Math.max(65, Math.round(stationBoardingRate * 1.02)));
-        seats = 42;
-        crowd = 'Low';
-        eta = 9;
-        front = 35;
-        middle = 48;
-        rear = 32;
-      } else if (peakBadgeType === 'optimal') {
-        cap = 22;
-        prob = 99;
-        seats = 58;
-        crowd = 'Low';
-        eta = 11;
-        front = 18;
-        middle = 25;
-        rear = 18;
-      } else {
-        cap = 16;
-        prob = 99;
-        seats = 68;
-        crowd = 'Low';
-        eta = 14;
-        front = 12;
-        middle = 18;
-        rear = 14;
-      }
-    }
-
-    let dest = bus.destination;
-    let plat = bus.platformNumber;
-    let coachReason = bus.coachReason;
-
-    if (destinationName) {
-      const origStop = findStationByNameOrId(stationName);
-      const destStop = findStationByNameOrId(destinationName);
-
-      const bOrig = BLUE_LINE_STATION_IDS.indexOf(origStop.id);
-      const bDest = BLUE_LINE_STATION_IDS.indexOf(destStop.id);
-      const gOrig = GREEN_LINE_STATION_IDS.indexOf(origStop.id);
-      const gDest = GREEN_LINE_STATION_IDS.indexOf(destStop.id);
-
-      const destShort = destStop.name
-        .replace(' Metro Station', '')
-        .replace(' Station', '')
-        .replace(' (MAA)', '')
-        .replace('Puratchi Thalaivar Dr. M.G.R ', '')
-        .trim();
-
-      if (bus.lineType === 'Blue Line') {
-        // Direct Blue Line
-        if (bOrig !== -1 && bDest !== -1) {
-          const isSouthbound = bOrig <= bDest;
-          if (isSouthbound) {
-            const platTarget = (bDest === 25 || destShort.toLowerCase().includes('airport')) ? 'Airport' : destShort;
-            dest = destStop.name;
-            plat = `Platform 1 (Southbound towards ${platTarget})`;
-            coachReason = `Direct Southbound Blue Line train towards ${destShort}.`;
-          } else {
-            const platTarget = (bDest < 12) ? 'Wimco Nagar' : 'Central';
-            dest = destStop.name;
-            plat = `Platform 2 (Northbound towards ${platTarget})`;
-            coachReason = `Direct Northbound Blue Line train towards ${destShort}.`;
-          }
-        } 
-        // Origin Blue Line, Destination Green Line (Transfer required)
-        else if (bOrig !== -1 && gDest !== -1) {
-          const centralIdx = BLUE_LINE_STATION_IDS.indexOf('stop-central');
-          const alandurIdx = BLUE_LINE_STATION_IDS.indexOf('stop-alandur');
-          const stopsViaCentral = Math.abs(bOrig - centralIdx) + Math.abs(gDest - 0);
-          const stopsViaAlandur = Math.abs(bOrig - alandurIdx) + Math.abs(gDest - 14);
-
-          if (stopsViaCentral <= stopsViaAlandur) {
-            // Transfer at Central
-            if (bOrig <= centralIdx) {
-              dest = `Puratchi Thalaivar Dr. M.G.R Central (Transfer for ${destShort})`;
-              plat = 'Platform 1 (Southbound towards Central)';
-              coachReason = `Board Southbound to Central. Transfer at Central Platform 1 for Green Line to ${destShort}.`;
-            } else {
-              dest = `Puratchi Thalaivar Dr. M.G.R Central (Transfer for ${destShort})`;
-              plat = 'Platform 2 (Northbound towards Central)';
-              coachReason = `Board Northbound to Central. Transfer at Central Platform 1 for Green Line to ${destShort}.`;
-            }
-          } else {
-            // Transfer at Alandur
-            if (bOrig <= alandurIdx) {
-              dest = `Alandur Interchange Station (Transfer for ${destShort})`;
-              plat = 'Platform 1 (Southbound towards Alandur)';
-              coachReason = `Board Southbound to Alandur. Transfer at Alandur Level 2 for Green Line to ${destShort}.`;
-            } else {
-              dest = `Alandur Interchange Station (Transfer for ${destShort})`;
-              plat = 'Platform 2 (Northbound towards Alandur)';
-              coachReason = `Board Northbound to Alandur. Transfer at Alandur Level 2 for Green Line to ${destShort}.`;
-            }
-          }
-        }
-      } else if (bus.lineType === 'Green Line') {
-        // Direct Green Line
-        if (gOrig !== -1 && gDest !== -1) {
-          const isSouthbound = gOrig <= gDest;
-          if (isSouthbound) {
-            dest = destStop.name;
-            plat = 'Platform 1 (Southbound towards St. Thomas Mount)';
-            coachReason = `Direct Green Line train Southbound towards ${destShort}.`;
-          } else {
-            dest = destStop.name;
-            plat = 'Platform 2 (Northbound towards Central)';
-            coachReason = `Direct Green Line train Northbound towards ${destShort} / Central.`;
-          }
-        }
-        // Origin Green Line, Destination Blue Line (Transfer required)
-        else if (gOrig !== -1 && bDest !== -1) {
-          const stopsViaCentral = Math.abs(gOrig - 0) + Math.abs(bDest - 12);
-          const stopsViaAlandur = Math.abs(gOrig - 14) + Math.abs(bDest - 22);
-
-          if (stopsViaCentral <= stopsViaAlandur) {
-            // Transfer at Central: Central is index 0 on Green Line
-            dest = `Puratchi Thalaivar Dr. M.G.R Central (Transfer for ${destShort})`;
-            plat = 'Platform 2 (Northbound towards Central)';
-            coachReason = `Board Northbound Green Line to Central. Transfer at Central Underground for Blue Line to ${destShort}.`;
-          } else {
-            // Transfer at Alandur (index 14)
-            if (gOrig <= 14) {
-              dest = `Alandur Interchange Station (Transfer for ${destShort})`;
-              plat = 'Platform 1 (Southbound towards Alandur)';
-              coachReason = `Board Southbound Green Line to Alandur. Transfer at Alandur Level 1 for Blue Line to ${destShort}.`;
-            } else {
-              dest = `Alandur Interchange Station (Transfer for ${destShort})`;
-              plat = 'Platform 2 (Northbound towards Alandur)';
-              coachReason = `Board Northbound Green Line to Alandur. Transfer at Alandur Level 1 for Blue Line to ${destShort}.`;
-            }
-          }
-        }
-      }
-    }
-
-    const updatedFactors = [
-      { label: 'Train Capacity', impact: cap > 75 ? 'negative' : 'positive', detail: `${seats} unallocated seats (${cap}% load)`, points: cap > 75 ? -15 : +22 },
-      { label: 'Platform Clearance', impact: 'positive', detail: `${stationBoardingRate}% clearance at ${stationName.replace(' Metro Station', '').replace(' Station', '')}`, points: Math.round(stationBoardingRate * 0.28) },
-      { label: '4-Car Dual Door Loading', impact: 'positive', detail: '8 wide automatic doors open simultaneously', points: +14 },
-      { label: 'Station Queue', impact: stationQueue > 20 ? 'negative' : 'neutral', detail: `${stationQueue} commuters queued at platform`, points: stationQueue > 20 ? -12 : -4 },
-      { label: 'Interchange Flow', impact: 'positive', detail: 'Steady passenger circulation & alighting', points: +12 },
-    ] as any;
-
-    return {
-      ...bus,
-      destination: dest,
-      platformNumber: plat,
-      coachReason,
-      nextStop: stationName,
-      capacityPercentage: cap,
-      boardingProbability: prob,
-      seatsAvailable: seats,
-      crowdLevel: crowd,
-      arrivalMinutes: eta,
-      realArrivalTime: computeRealArrivalTime(hours, minutes, eta),
-      crowdBreakdown: { front, middle, rear },
-      coachBreakdown: { front, middle, rear },
-      factors: updatedFactors,
-    };
-  });
+/** Route-compatible local estimates when the gateway is unavailable. */
+export function getRecalculatedTrains(hours: number, minutes: number, dayName: DayOfWeek,
+  currentStop?: RouteStop, destinationName?: string): BusTransit[] {
+  try {
+    return getSimulationTrains(currentStop?.id || 'stop-guindy', destinationName || 'stop-central',
+      hours, minutes, evaluatePeakStatus(hours, minutes, dayName).isPeak);
+  } catch { return []; }
 }

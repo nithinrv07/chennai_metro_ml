@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { servesJourney } from '../utils/metroNetwork';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
+import { LatestRequest } from '../utils/predictionState';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   BrainCircuit, Sparkles, CheckCircle2, ArrowRight, 
@@ -8,9 +11,11 @@ import {
   ChevronRight, Info, Gauge, Users, MapPin, TrendingDown,
   Navigation, ShieldAlert, CheckCircle, ExternalLink
 } from 'lucide-react';
-import { BusTransit, RouteStop, UserProfile } from '../types';
+import { BusTransit, RouteStop, UserProfile, TelemetryDataSource } from '../types';
 
 interface SmartCoachProps {
+  telemetrySource?: TelemetryDataSource;
+  isLoading?: boolean;
   buses: BusTransit[];
   currentStop: RouteStop;
   profile: UserProfile;
@@ -44,13 +49,14 @@ interface SmartAlertItem {
   timeAgo: string;
 }
 
-export const SmartCoach: React.FC<SmartCoachProps> = ({
+const SmartCoachContent: React.FC<SmartCoachProps> = ({
   buses,
   currentStop,
   profile,
   destination,
   onStartTrip,
   onOpenStationModal,
+  telemetrySource = 'demo',
 }) => {
   const [userQuery, setUserQuery] = useState('');
   const [isQuerying, setIsQuerying] = useState(false);
@@ -58,70 +64,32 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
   const [selectedCoachCar, setSelectedCoachCar] = useState<number>(3); // Default Coach 4 (Rear Car)
   const [appliedZoneFeedback, setAppliedZoneFeedback] = useState<string | null>(null);
 
-  const [advice, setAdvice] = useState<CoachResponse>({
-    headline: `Board Blue Line BL-104 immediately at ${currentStop.name.split(' ')[0]} Platform 2`,
-    recommendedBusRoute: 'BL-104',
-    comparisonDelta: '27% higher boarding probability & arrives 4m earlier than Green Line GL-208',
-    detailedReason: 'BL-104 operates on the direct Wimco Nagar ⇄ Chennai Airport trunk corridor with 24 available seats (72% load). GL-208 is experiencing a heavy interchange surge from Koyambedu and is already 89% packed.',
-    actionableSteps: [
-      `Head to ${currentStop.name.split(' ')[0]} Metro Platform 2 (Direct Airport / Central corridor)`,
-      'Stand at Door Marker #14–16 near Coach 4 (Rear Car DMC2) for 45% less boarding crowd',
-      'Tap Singara Chennai NCMC card at wide AFC gates for instant 20% discount (₹32 vs ₹40)'
-    ],
-    alternativeTip: 'If traveling with heavy flight luggage to Airport, the originating rake BL-112 arriving in 10 mins has empty overhead racks and 96% boarding clearance.'
-  });
-  const [aiSource, setAiSource] = useState<string>('gemini-2.5-flash');
-
-  const hasTrains = Boolean(buses && buses.length > 0);
-  const recommendedBus: BusTransit = (hasTrains ? (buses.find((b) => b.routeNumber === advice.recommendedBusRoute) || buses[0]) : null) || {
-    id: 'train-closed',
-    routeNumber: 'CMRL-OFF',
-    name: 'Chennai Metro Fleet (Closed)',
-    lineType: 'Blue / Green Line',
-    lineColor: 'blue',
-    destination: 'Depot',
-    currentLocation: 'Maintenance Depot',
-    nextStop: currentStop.name,
-    arrivalMinutes: 0,
-    realArrivalTime: '05:00 AM',
-    historicalSuccessRate: 95,
-    boardingProbability: 0,
-    crowdLevel: 'Low',
-    capacityPercentage: 0,
-    seatsAvailable: 0,
-    confidenceScore: 90,
-    totalCapacity: 240,
-    fare: '₹0',
-    acStatus: 'Standby',
-    doorsCount: 4,
-    platformNumber: 'Platform 1 & 2',
-    wheelchairAccessible: true,
-    crowdBreakdown: { front: 0, middle: 0, rear: 0 },
-    factors: [],
-    isRecommended: false,
-    coachReason: 'Metro passenger services closed between 23:00 and 05:00.'
-  };
+  const [advice, setAdvice] = useState<CoachResponse>(() => ({
+    headline: `Consider ${buses[0].routeNumber} at ${buses[0].platformNumber}`,
+    recommendedBusRoute: buses[0].routeNumber,
+    comparisonDelta: 'Based on the available journey estimates',
+    detailedReason: buses[0].coachReason || 'Compare arrival and crowd estimates before boarding.',
+    actionableSteps: [buses[0].coachReason || 'Check the platform display before boarding.']
+  }));
+  const [aiSource, setAiSource] = useState<string>('journey-estimate');
+  const adviceRequest = useRef(new LatestRequest());
+  useEffect(() => () => adviceRequest.current.cancel(), []);
+  const recommendedBus = buses.find(b => b.routeNumber === advice.recommendedBusRoute) || buses[0];
 
   // Countdown timer state for next arriving train (in seconds)
   const [countdownSeconds, setCountdownSeconds] = useState<number>(
-    Math.max(1, recommendedBus.arrivalMinutes * 60)
+    Math.max(0, recommendedBus.arrivalMinutes * 60)
   );
 
   // Sync initial countdown whenever recommended train changes
   useEffect(() => {
-    setCountdownSeconds(Math.max(1, recommendedBus.arrivalMinutes * 60));
+    setCountdownSeconds(Math.max(0, recommendedBus.arrivalMinutes * 60));
   }, [recommendedBus.id, recommendedBus.arrivalMinutes]);
 
   // Live ticking countdown timer
   useEffect(() => {
     const timer = setInterval(() => {
-      setCountdownSeconds((prev) => {
-        if (prev <= 1) {
-          // If countdown finishes, cycle back or refresh with station interval
-          return Math.max(30, recommendedBus.arrivalMinutes * 60);
-        }
-        return prev - 1;
-      });
+      setCountdownSeconds(prev => Math.max(0, prev - 1));
     }, 1000);
 
     return () => clearInterval(timer);
@@ -145,7 +113,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
         code: 'DMC1',
         title: 'Coach 1 (Front Car)',
         designation: 'Priority & Special Access Zone',
-        loadPercent: Math.min(95, Math.max(20, baseBreakdown.front)),
+        loadPercent: baseBreakdown.front,
         seatCount: 12,
         zoneName: 'Platform Zone A (North End)',
         doorMarkers: 'Door #01–04',
@@ -158,7 +126,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
         code: 'TC1',
         title: 'Coach 2 (Mid-North Car)',
         designation: 'General Trailer Car • Escalator Landing',
-        loadPercent: Math.min(98, Math.max(45, baseBreakdown.middle + 8)),
+        loadPercent: baseBreakdown.middle,
         seatCount: 4,
         zoneName: 'Platform Zone B (Mid-North)',
         doorMarkers: 'Door #05–08',
@@ -171,7 +139,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
         code: 'TC2',
         title: 'Coach 3 (Mid-South Car)',
         designation: 'General Trailer Car • Mid Platform',
-        loadPercent: Math.min(95, Math.max(40, baseBreakdown.middle - 4)),
+        loadPercent: baseBreakdown.middle,
         seatCount: 6,
         zoneName: 'Platform Zone C (Mid-South)',
         doorMarkers: 'Door #09–12',
@@ -184,7 +152,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
         code: 'DMC2',
         title: 'Coach 4 (Rear Car)',
         designation: 'General Motor Car • Least Congested',
-        loadPercent: Math.min(90, Math.max(18, baseBreakdown.rear)),
+        loadPercent: baseBreakdown.rear,
         seatCount: 18,
         zoneName: 'Platform Zone D (South End)',
         doorMarkers: 'Door #13–16',
@@ -212,72 +180,31 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
     const loadDiff = Math.max(15, congestedCar.loadPercent - bestCar.loadPercent);
 
     // Generate Contextual Smart Alerts based on current station occupancy
-    const alerts: SmartAlertItem[] = [
-      {
-        id: 'alert-carriage-shift',
-        category: 'carriage',
-        severity: 'urgent',
-        title: `Shift to ${bestCar.title} for ${loadDiff}% Less Crowd`,
-        summary: `Platform center around Coach 2 is experiencing severe choke-point congestion (${congestedCar.loadPercent}% load). Moving to ${bestCar.code} grants ${bestCar.seatCount} open seats.`,
-        details: `Station queue sensors detect ${currentStop.queueLength} passengers clustered around the central staircase. By walking ${bestCar.staircaseDistance}, you reach ${bestCar.zoneName} (${bestCar.doorMarkers}) where train occupancy is only ${bestCar.loadPercent}%.`,
-        recommendedCarriageIndex: bestIdx,
-        recommendedZoneName: bestCar.zoneName,
-        doorMarkers: bestCar.doorMarkers,
-        walkDirections: bestCar.staircaseDistance,
-        crowdDelta: `-${loadDiff}% Less Crowded`,
-        badge: 'Recommended Car',
-        timeAgo: 'Live Sensor',
-      },
-      {
-        id: 'alert-platform-zone',
-        category: 'platform',
-        severity: 'recommended',
-        title: `Boarding Staging Zone: Use ${bestCar.zoneName}`,
-        summary: `Avoid Platform Screen Doors #05–08. Queue is 3.5x shorter at Doors #13–16 on ${recommendedBus.platformNumber || 'Platform 2'}.`,
-        details: `Platform thermal scanners at ${currentStop.name.split(' ')[0]} show passenger density exceeding 3.8 persons/m² near the middle platform. Moving south to Zone D ensures smooth entry with a 94% boarding success rate.`,
-        recommendedCarriageIndex: bestIdx,
-        recommendedZoneName: bestCar.zoneName,
-        doorMarkers: bestCar.doorMarkers,
-        walkDirections: 'Take South exit corridor directly towards rear train markers',
-        crowdDelta: '+34% Faster Boarding',
-        badge: 'Platform Staging',
-        timeAgo: 'Updated 1m ago',
-      },
-      {
-        id: 'alert-station-surge',
-        category: 'surge',
-        severity: isHighStationCrowd ? 'urgent' : 'info',
-        title: isHighStationCrowd 
-          ? `Station Surge Alert: High Concourse Occupancy (${currentStop.queueLength} waiting)`
-          : `Optimal Station Flow: Normal Station Occupancy at ${currentStop.name.split(' ')[0]}`,
-        summary: isHighStationCrowd 
-          ? `Escalator arrivals from street level are creating boarding delays. Use wide AFC Gate 4 for rapid platform access.`
-          : `Concourse turnstiles are clear. Current queue wait time is under 1.5 minutes.`,
-        details: `Historical boarding rate is ${currentStop.boardingRateHistorical}%. For quick platform transfer, avoid the central elevator queue and use the southern staircase.`,
-        recommendedCarriageIndex: bestIdx,
-        recommendedZoneName: 'Southern Concourse Gate 4',
-        doorMarkers: 'Gate 4 ➔ Platform Zone D',
-        walkDirections: 'Use South AFC turnstiles for direct alignment with Coach 4',
-        crowdDelta: '-2 min Gate Wait',
-        badge: isHighStationCrowd ? 'Surge Alert' : 'Station Flow',
-        timeAgo: 'Live',
-      },
-      {
-        id: 'alert-seating-tradeoff',
-        category: 'seating',
-        severity: 'recommended',
-        title: `Guaranteed Seating Strategy: Originating Train BL-112`,
-        summary: `If you prefer guaranteed seating with luggage, originating train in 10m has 96% empty coach capacity.`,
-        details: `Train ${recommendedBus.routeNumber} has ${recommendedBus.seatsAvailable} seats available. The following rake originating from Wimco Nagar depot has fresh seating across all 4 carriages.`,
-        recommendedCarriageIndex: bestIdx,
-        recommendedZoneName: 'Platform 1 / Cross-Platform',
-        doorMarkers: 'All Doors Open',
-        walkDirections: 'Hold position at Platform 2 or cross to Platform 1 for originating service',
-        crowdDelta: '+100% Seat Probability',
-        badge: 'Seating Insight',
-        timeAgo: 'Scheduled',
-      }
-    ];
+    const estimateSource = recommendedBus.source === 'ml' ? 'ML estimate' : 'Fallback estimate';
+    const alerts: SmartAlertItem[] = [{
+      id: 'alert-coach-load', category: 'carriage', severity: 'recommended',
+      title: `Compare coach loads: ${bestCar.title}`,
+      summary: `${bestCar.title} has the lowest estimated load (${bestCar.loadPercent}%) on this train.`,
+      details: `${estimateSource}. Coach figures are derived estimates; check the platform display before boarding.`,
+      recommendedCarriageIndex: bestIdx, recommendedZoneName: bestCar.zoneName,
+      doorMarkers: bestCar.doorMarkers, walkDirections: 'Follow the station coach-position signs.',
+      crowdDelta: `${bestCar.loadPercent}% estimated load`, badge: 'Coach estimate', timeAgo: estimateSource
+    }, {
+      id: 'alert-platform', category: 'platform', severity: 'info',
+      title: `Journey platform: ${recommendedBus.platformNumber}`,
+      summary: recommendedBus.coachReason || 'Confirm the train direction on the platform display.',
+      details: 'Coach zones below are an illustrative layout. Follow station signage for exact boarding positions.',
+      recommendedCarriageIndex: bestIdx, recommendedZoneName: bestCar.zoneName,
+      doorMarkers: bestCar.doorMarkers, walkDirections: 'Confirm direction and coach position at the station.',
+      crowdDelta: 'Check station signs', badge: 'Platform guidance', timeAgo: estimateSource
+    }, {
+      id: 'alert-seating', category: 'seating', severity: 'info',
+      title: 'Seating estimate', summary: `${recommendedBus.seatsAvailable} seats estimated available on this train.`,
+      details: 'Seat availability is estimated and can change before arrival; seating is not guaranteed.',
+      recommendedCarriageIndex: bestIdx, recommendedZoneName: bestCar.zoneName,
+      doorMarkers: bestCar.doorMarkers, walkDirections: 'Compare the next train if comfort is your priority.',
+      crowdDelta: `${recommendedBus.boardingProbability}% boarding estimate`, badge: 'Seating estimate', timeAgo: estimateSource
+    }];
 
     // Platform zone map data
     const pZones = [
@@ -348,15 +275,17 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
 
   const presetQuestions = [
     `I need to reach ${destination} on time from ${currentStop.name.split(' ')[0]}. Which train is safest?`,
-    'Should I wait 10 mins for originating BL-112 to get guaranteed seating with luggage?',
+    'Should I wait for the next matching train to improve my seating chance?',
     `Which coach door marker at ${currentStop.name.split(' ')[0]} Metro avoids the morning rush choke-point?`,
     'Is it worth interchanging at Alandur or staying on the direct Blue Line?',
   ];
 
   const fetchCoachAdvice = async (queryText?: string) => {
+    const request = adviceRequest.current.begin();
     setIsQuerying(true);
     try {
-      const res = await fetch('/api/coach/advise', {
+      const res = await fetchWithTimeout('/api/coach/advise', {
+        signal: request.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -372,7 +301,8 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
 
       if (res.ok) {
         const data = await res.json();
-        if (data.advice) {
+        if (!adviceRequest.current.isCurrent(request)) return;
+        if (data.advice && buses.some(b => b.routeNumber === data.advice.recommendedBusRoute)) {
           setAdvice(data.advice);
           setAiSource(data.source || 'gemini-2.5-flash');
         }
@@ -380,7 +310,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
     } catch (err) {
       console.warn('Coach advice fetch error:', err);
     } finally {
-      setIsQuerying(false);
+      if (adviceRequest.current.isCurrent(request)) setIsQuerying(false);
     }
   };
 
@@ -401,14 +331,14 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
               </div>
             </div>
             <p className="text-xs text-slate-500 mt-1 font-medium">
-              Real-time Chennai Metro AI copilot: Platform crowd dynamics, door staging, coach car distribution, and Singara NCMC guidance
+              Chennai Metro journey assistant: Platform crowd dynamics, door staging, coach car distribution, and Singara NCMC guidance
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono font-bold px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-100 text-[#0066B2] flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
-              CMRL AI Engine Active
+              {telemetrySource === 'predicted' ? 'ML estimates' : 'Fallback estimates'}
             </span>
           </div>
         </div>
@@ -453,7 +383,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
             </span>
-            <span className="text-xs font-mono text-slate-500">Live Telemetry & GPS Active</span>
+            <span className="text-xs font-mono text-slate-500">{telemetrySource === 'predicted' ? 'Predicted train data' : 'Simulated train data'}</span>
           </div>
         </div>
 
@@ -473,7 +403,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
                     Next Train Arrival
                   </span>
                   <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-mono font-bold">
-                    LIVE
+                    ESTIMATE
                   </span>
                 </div>
                 <div className="text-sm font-bold text-slate-900 mt-0.5">
@@ -585,7 +515,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
             className="w-full sm:w-auto py-3.5 px-5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 border border-slate-200 transition-all disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isQuerying ? 'animate-spin' : ''}`} />
-            {isQuerying ? 'Analyzing...' : 'Re-Evaluate Live Options'}
+            {isQuerying ? 'Analyzing...' : 'Re-Evaluate Journey Options'}
           </button>
         </div>
       </div>
@@ -606,7 +536,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 font-mono">
-                  Live Station Occupancy Alert
+                  Estimated Station Occupancy
                 </span>
                 <span className="text-xs text-slate-400 font-mono">• {currentStop.name.split(' ')[0]}</span>
               </div>
@@ -614,7 +544,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
                 Smart Alerts: Carriage & Boarding Zone Optimizer
               </h3>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
-                Real-time coach load distribution & platform chokepoint bypass for Train {recommendedBus.routeNumber}
+                Estimated coach load distribution & platform guidance for Train {recommendedBus.routeNumber}
               </p>
             </div>
           </div>
@@ -686,11 +616,11 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
             <div className="flex items-center gap-2">
               <TrainFront className="w-4 h-4 text-[#0066B2]" />
               <span className="text-xs font-black text-slate-900 uppercase font-mono tracking-wider">
-                Train {recommendedBus.routeNumber} Carriage Occupancy Scan (4 Cars)
+                Train {recommendedBus.routeNumber} Estimated Carriage Occupancy (4 Cars)
               </span>
             </div>
             <div className="text-[11px] text-slate-500 font-mono">
-              Direction: <strong className="text-slate-700">North ➔ South (Airport / Wimco)</strong>
+              Direction: <strong className="text-slate-700">{recommendedBus.serviceDirection}</strong>
             </div>
           </div>
 
@@ -761,7 +691,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
 
                   {/* Open Seats & Door Marker */}
                   <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                    <span>{car.seatCount} Seats</span>
+                    <span>Estimated coach load</span>
                     <span className="font-bold text-slate-700">{car.doorMarkers}</span>
                   </div>
                 </button>
@@ -807,7 +737,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
             <span className="font-bold text-slate-700 uppercase">
               Actionable Station Alerts ({filteredAlerts.length})
             </span>
-            <span>Based on {currentStop.name.split(' ')[0]} Sensor Data</span>
+            <span>Estimated for {currentStop.name.split(' ')[0]}</span>
           </div>
 
           {filteredAlerts.map((alert) => (
@@ -866,11 +796,11 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
         <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-500 font-mono">
           <div className="flex items-center gap-2">
             <MapPin className="w-3.5 h-3.5 text-[#0066B2]" />
-            <span>Platform 2 Staging Zones:</span>
+            <span>Illustrative Coach Zones:</span>
             <span className="text-slate-700 font-bold">Zone A (Front) • Zone B (Mid-Stairs) • Zone C (Mid-Lift) • Zone D (Rear)</span>
           </div>
           <div className="text-emerald-700 font-bold">
-            ★ Recommended Staging: Zone D (Doors #13–16)
+            Recommended Staging: {activeCar.zoneName} ({activeCar.doorMarkers})
           </div>
         </div>
       </div>
@@ -879,7 +809,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
       <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-7 shadow-xs">
         <h3 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2">
           <Layers className="w-4 h-4 text-[#0066B2]" />
-          Real-Time Chennai Metro Comparison Matrix
+          Chennai Metro Estimate Comparison
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1007,4 +937,16 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
       </div>
     </div>
   );
+};
+
+
+export const SmartCoach: React.FC<SmartCoachProps> = (props) => {
+  const trains = props.buses.filter(t => servesJourney(t, props.currentStop.id, props.destination));
+  if (props.isLoading || props.telemetrySource === 'closed' || !trains.length) {
+    return <div id="smart-coach-unavailable" className="bg-white border border-slate-200 rounded-3xl p-8 text-center">
+      <h2 className="font-bold text-lg">{props.isLoading ? 'Loading journey' : props.telemetrySource === 'closed' ? 'Metro service closed' : 'No matching trains'}</h2>
+      <p className="text-sm text-slate-500 mt-2">{props.telemetrySource === 'closed' ? 'Passenger services resume at 05:00 AM.' : 'Select a valid journey or refresh the train estimates.'}</p>
+    </div>;
+  }
+  return <SmartCoachContent key={`${props.currentStop.id}:${props.destination}`} {...props} buses={trains} />;
 };

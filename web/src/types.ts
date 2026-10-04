@@ -23,7 +23,12 @@ export interface BusTransit {
   seatsAvailable: number;
   totalCapacity: number;
   historicalSuccessRate: number; // e.g. 91%
-  confidenceScore: number; // e.g. 96.4%
+  confidenceScore: number | null; // e.g. 96.4%
+  source?: 'ml' | 'gateway_fallback' | 'local_demo';
+  serviceDirection?: 'Southbound' | 'Northbound';
+  servedStationIds?: string[];
+  firstLegTargetId?: string;
+  terminusId?: string;
   isRecommended?: boolean;
   coachReason?: string;
   coachCoachType?: 'standard' | 'double_decker' | 'electric_rapid' | 'articulated';
@@ -156,3 +161,4 @@ export interface JourneyOption {
   boardingProbability: number;
   coachRecommendation: string;
 }
+

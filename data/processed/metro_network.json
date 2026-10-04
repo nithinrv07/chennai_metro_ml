@@ -1,0 +1,378 @@
+{
+  "stations": [
+    {
+      "id": "stop-wimco-nagar-depot",
+      "name": "Wimco Nagar Depot Station",
+      "aliases": [
+        "Wimco Nagar Depot Station",
+        "Wimco Nagar North Chennai Depot",
+        "north depot",
+        "wimco nagar depot"
+      ]
+    },
+    {
+      "id": "stop-wimco-nagar",
+      "name": "Wimco Nagar",
+      "aliases": [
+        "Wimco Nagar Metro Station"
+      ]
+    },
+    {
+      "id": "stop-tiruvottriyur",
+      "name": "Tiruvottriyur",
+      "aliases": [
+        "Tiruvottriyur Metro Station"
+      ]
+    },
+    {
+      "id": "stop-tiruvottriyur-theradi",
+      "name": "Tiruvottriyur Theradi",
+      "aliases": [
+        "Tiruvottriyur Theradi Station"
+      ]
+    },
+    {
+      "id": "stop-kaladipet",
+      "name": "Kaladipet",
+      "aliases": [
+        "Kaladipet Metro Station"
+      ]
+    },
+    {
+      "id": "stop-tollgate",
+      "name": "Tollgate",
+      "aliases": [
+        "Tollgate Metro Station"
+      ]
+    },
+    {
+      "id": "stop-new-washermanpet",
+      "name": "New Washermanpet",
+      "aliases": [
+        "New Washermanpet Station"
+      ]
+    },
+    {
+      "id": "stop-tondiarpet",
+      "name": "Tondiarpet",
+      "aliases": [
+        "Tondiarpet Metro Station"
+      ]
+    },
+    {
+      "id": "stop-sir-theagaraya",
+      "name": "Sir Theagaraya College",
+      "aliases": [
+        "Sir Theagaraya College Station"
+      ]
+    },
+    {
+      "id": "stop-washermanpet",
+      "name": "Washermenpet Metro Station",
+      "aliases": [
+        "Washermanpet Metro Station",
+        "washermanpet",
+        "washermenpet"
+      ]
+    },
+    {
+      "id": "stop-mannadi",
+      "name": "Mannadi Metro Station",
+      "aliases": [
+        "Mannadi Metro Station"
+      ]
+    },
+    {
+      "id": "stop-high-court",
+      "name": "High Court Metro Station",
+      "aliases": [
+        "High Court & Parrys Corner",
+        "High Court Metro Station",
+        "high court",
+        "parrys"
+      ]
+    },
+    {
+      "id": "stop-central",
+      "name": "Puratchi Thalaivar Dr. M.G.R Central",
+      "aliases": [
+        "Puratchi Thalaivar Dr. M.G.R Central",
+        "central",
+        "mgr",
+        "puratchi thalaivar"
+      ]
+    },
+    {
+      "id": "stop-govt-estate",
+      "name": "Government Estate Metro Station",
+      "aliases": [
+        "Government Estate Metro Station",
+        "Marina Beach via Govt Estate / LIC",
+        "beach",
+        "government estate",
+        "govt estate",
+        "marina"
+      ]
+    },
+    {
+      "id": "stop-lic",
+      "name": "LIC Metro Station",
+      "aliases": [
+        "LIC Metro Station"
+      ]
+    },
+    {
+      "id": "stop-thousand-lights",
+      "name": "Thousand Lights Metro Station",
+      "aliases": [
+        "Thousand Lights & Anna Salai",
+        "Thousand Lights Metro Station",
+        "thousand lights"
+      ]
+    },
+    {
+      "id": "stop-ag-dms",
+      "name": "AG-DMS Metro Station",
+      "aliases": [
+        "AG-DMS Metro Station",
+        "ag-dms",
+        "agdms"
+      ]
+    },
+    {
+      "id": "stop-teynampet",
+      "name": "Teynampet Metro Station",
+      "aliases": [
+        "Teynampet Metro Station"
+      ]
+    },
+    {
+      "id": "stop-nandanam",
+      "name": "Nandanam Metro Station",
+      "aliases": [
+        "Nandanam Metro Station"
+      ]
+    },
+    {
+      "id": "stop-saidapet",
+      "name": "Saidapet Metro Station",
+      "aliases": [
+        "Saidapet Metro Station"
+      ]
+    },
+    {
+      "id": "stop-little-mount",
+      "name": "Little Mount Metro Station",
+      "aliases": [
+        "Little Mount Metro Station"
+      ]
+    },
+    {
+      "id": "stop-guindy",
+      "name": "Guindy Metro Station",
+      "aliases": [
+        "Anna University & IIT Madras (Guindy)",
+        "Guindy Metro Station",
+        "Tidel Park & OMR IT Corridor",
+        "anna university",
+        "guindy",
+        "iit",
+        "omr",
+        "tidel"
+      ]
+    },
+    {
+      "id": "stop-alandur",
+      "name": "Alandur Interchange Station",
+      "aliases": [
+        "Alandur Interchange Station"
+      ]
+    },
+    {
+      "id": "stop-nanganallur-road",
+      "name": "Nanganallur Road Station",
+      "aliases": [
+        "Nanganallur Road Station"
+      ]
+    },
+    {
+      "id": "stop-meenambakkam",
+      "name": "Meenambakkam Metro Station",
+      "aliases": [
+        "Meenambakkam Metro Station"
+      ]
+    },
+    {
+      "id": "stop-airport",
+      "name": "Chennai International Airport (MAA)",
+      "aliases": [
+        "Chennai International Airport (MAA)",
+        "airport",
+        "maa"
+      ]
+    },
+    {
+      "id": "stop-egmore",
+      "name": "Egmore Metro Station",
+      "aliases": [
+        "Chennai Egmore Metro Station",
+        "Chennai Egmore Railway Station",
+        "egmore"
+      ]
+    },
+    {
+      "id": "stop-nehru-park",
+      "name": "Nehru Park",
+      "aliases": [
+        "Nehru Park Metro Station"
+      ]
+    },
+    {
+      "id": "stop-kilpauk",
+      "name": "Kilpauk",
+      "aliases": [
+        "Kilpauk Medical College Station",
+        "kilpauk"
+      ]
+    },
+    {
+      "id": "stop-pachaiyappas",
+      "name": "Pachaiyappas",
+      "aliases": [
+        "Pachaiyappa",
+        "Pachaiyappa's College Station",
+        "pachaiyappas"
+      ]
+    },
+    {
+      "id": "stop-shenoy-nagar",
+      "name": "Shenoy Nagar",
+      "aliases": [
+        "Shenoy Nagar Metro Station"
+      ]
+    },
+    {
+      "id": "stop-anna-nagar-east",
+      "name": "Anna Nagar East",
+      "aliases": [
+        "Anna Nagar East Metro Station",
+        "anna nagar east"
+      ]
+    },
+    {
+      "id": "stop-annanagar",
+      "name": "Anna Nagar Tower Station",
+      "aliases": [
+        "Anna Nagar Tower & 2nd Avenue",
+        "Anna Nagar Tower Station",
+        "anna nagar",
+        "anna nagar tower"
+      ]
+    },
+    {
+      "id": "stop-thirumangalam",
+      "name": "Thirumangalam",
+      "aliases": [
+        "Thirumangalam Metro Station"
+      ]
+    },
+    {
+      "id": "stop-koyambedu",
+      "name": "Koyambedu CMBT Station",
+      "aliases": [
+        "Koyambedu CMBT Bus Terminus",
+        "Koyambedu CMBT Station",
+        "cmbt",
+        "koyambedu"
+      ]
+    },
+    {
+      "id": "stop-arumbakkam",
+      "name": "Arumbakkam",
+      "aliases": [
+        "Arumbakkam Metro Station"
+      ]
+    },
+    {
+      "id": "stop-vadapalani",
+      "name": "Vadapalani Metro Station",
+      "aliases": [
+        "Vadapalani Metro Station",
+        "Vadapalani Murugan Temple & Mall",
+        "vadapalani"
+      ]
+    },
+    {
+      "id": "stop-ashok-nagar",
+      "name": "Ashok Nagar Metro Station",
+      "aliases": [
+        "Ashok Nagar Metro Station"
+      ]
+    },
+    {
+      "id": "stop-ekkattuthangal",
+      "name": "Ekkattuthangal",
+      "aliases": [
+        "Ekkattuthangal Metro Station"
+      ]
+    },
+    {
+      "id": "stop-st-thomas-mount",
+      "name": "St. Thomas Mount Metro Station",
+      "aliases": [
+        "St. Thomas Mount Terminal",
+        "st thomas mount",
+        "st. thomas mount",
+        "thomas mount"
+      ]
+    }
+  ],
+  "lines": {
+    "blue": [
+      "stop-wimco-nagar-depot",
+      "stop-wimco-nagar",
+      "stop-tiruvottriyur",
+      "stop-tiruvottriyur-theradi",
+      "stop-kaladipet",
+      "stop-tollgate",
+      "stop-new-washermanpet",
+      "stop-tondiarpet",
+      "stop-sir-theagaraya",
+      "stop-washermanpet",
+      "stop-mannadi",
+      "stop-high-court",
+      "stop-central",
+      "stop-govt-estate",
+      "stop-lic",
+      "stop-thousand-lights",
+      "stop-ag-dms",
+      "stop-teynampet",
+      "stop-nandanam",
+      "stop-saidapet",
+      "stop-little-mount",
+      "stop-guindy",
+      "stop-alandur",
+      "stop-nanganallur-road",
+      "stop-meenambakkam",
+      "stop-airport"
+    ],
+    "green": [
+      "stop-central",
+      "stop-egmore",
+      "stop-nehru-park",
+      "stop-kilpauk",
+      "stop-pachaiyappas",
+      "stop-shenoy-nagar",
+      "stop-anna-nagar-east",
+      "stop-annanagar",
+      "stop-thirumangalam",
+      "stop-koyambedu",
+      "stop-arumbakkam",
+      "stop-vadapalani",
+      "stop-ashok-nagar",
+      "stop-ekkattuthangal",
+      "stop-alandur",
+      "stop-st-thomas-mount"
+    ]
+  }
+}

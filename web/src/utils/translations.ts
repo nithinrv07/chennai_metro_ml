@@ -109,7 +109,7 @@ export const translations: Record<Language, TranslationDictionary> = {
 
     liveSource: 'Live Telemetry',
     predictedSource: 'ML Predicted',
-    demoSource: 'Demo Mode',
+    demoSource: 'Fallback estimates',
     closedSource: 'Service Closed',
     lastUpdated: 'Updated',
     justNow: 'just now',
