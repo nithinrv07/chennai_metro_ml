@@ -97,7 +97,7 @@ export const SmartCoach: React.FC<SmartCoachProps> = ({
     platformNumber: 'Platform 1 & 2',
     wheelchairAccessible: true,
     crowdBreakdown: { front: 0, middle: 0, rear: 0 },
-    coachBreakdown: { front: 0, middle: 0, rear: 0 },
+    factors: [],
     isRecommended: false,
     coachReason: 'Metro passenger services closed between 23:00 and 05:00.'
   };
