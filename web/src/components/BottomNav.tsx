@@ -28,7 +28,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     },
     { 
       id: 'map' as NavTab, 
-      label: isTa ? 'வரைபடம்' : 'Map', 
+      label: isTa ? 'வழித்தடம்' : 'Route',
       sublabel: isTa ? 'நெட்வொர்க்' : 'Network',
       icon: Map 
     },
@@ -51,7 +51,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     <nav 
       id="bottom-navigation-bar" 
       aria-label="Commuter Navigation Bar"
-      className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-slate-200 px-3 sm:px-6 py-2 shadow-[0_-4px_20px_rgba(0,0,0,0.04)]"
+      className="relative shrink-0 z-40 bg-white/95 backdrop-blur-lg border-t border-slate-200 px-3 sm:px-6 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,0.04)]"
     >
       <div className="max-w-md mx-auto grid grid-cols-4 gap-2">
         {tabs.map((tab) => {
@@ -71,13 +71,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             >
               <div className="relative">
                 <Icon className={`w-5 h-5 transition-transform ${isActive ? 'scale-110 stroke-[2.5]' : 'stroke-[1.75]'}`} />
-                {tab.badge && tab.badge > 0 && (
+                {(tab.badge ?? 0) > 0 && (
                   <span className="absolute -top-1 -right-2 w-4 h-4 bg-emerald-500 text-white font-black text-[9px] rounded-full flex items-center justify-center shadow-xs animate-pulse">
                     {tab.badge}
                   </span>
                 )}
               </div>
-              <span className="text-[11px] mt-1 font-bold tracking-tight leading-none whitespace-nowrap">
+              <span className="text-[11px] mt-1 font-bold tracking-tight leading-tight text-center">
                 {tab.label}
               </span>
             </button>

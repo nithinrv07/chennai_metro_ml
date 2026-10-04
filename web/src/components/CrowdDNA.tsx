@@ -54,7 +54,7 @@ export const CrowdDNA: React.FC<CrowdDNAProps> = ({
   const activeDayPattern: DayPattern = mlPattern || CROWD_DNA_WEEKLY[selectedDayIndex] || CROWD_DNA_WEEKLY[0];
 
   return (
-    <div id="crowd-dna-view" className="space-y-6 pb-24 max-w-5xl mx-auto">
+    <div id="crowd-dna-view" className="space-y-6 pb-24 w-full">
       {/* Header */}
       <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

@@ -4,7 +4,7 @@ export type PriorityPreference = 'highest_probability' | 'fastest_travel' | 'gua
 
 export type CrowdLevel = 'Low' | 'Moderate' | 'High' | 'Very High' | 'Overflowing';
 
-export type MetroLineType = 'Blue Line' | 'Green Line' | 'Purple Line';
+export type MetroLineType = 'Blue Line' | 'Green Line' | 'Purple Line' | 'Blue / Green Line';
 
 export interface BusTransit {
   id: string;
@@ -29,12 +29,11 @@ export interface BusTransit {
   servedStationIds?: string[];
   firstLegTargetId?: string;
   terminusId?: string;
-  coachBreakdown?: { front: number; middle: number; rear: number };
   isRecommended?: boolean;
   coachReason?: string;
   coachCoachType?: 'standard' | 'double_decker' | 'electric_rapid' | 'articulated';
   fare: string;
-  acStatus: 'Full AC' | 'Standard' | 'Eco Mode';
+  acStatus: 'Full AC' | 'Standard' | 'Eco Mode' | 'Standby';
   doorsCount: number;
   platformNumber?: string;
   wheelchairAccessible: boolean;
@@ -42,6 +41,11 @@ export interface BusTransit {
     front: number; // Coach 1 (DMC1 - Women/Front)
     middle: number; // Coach 2 & 3 (TC1 & TC2 - Middle)
     rear: number; // Coach 4 (DMC2 - Rear)
+  };
+  coachBreakdown?: {
+    front: number;
+    middle: number;
+    rear: number;
   };
   factors: {
     label: string;

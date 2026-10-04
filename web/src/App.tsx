@@ -233,7 +233,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F7FA] text-[#1A1C1E] flex flex-col selection:bg-[#0066B2] selection:text-white font-sans antialiased">
+    <div className="h-dvh overflow-hidden bg-[#F4F7FA] text-[#1A1C1E] flex flex-col selection:bg-[#0066B2] selection:text-white font-sans antialiased">
       {/* 1. Splash Screen */}
       <AnimatePresence>
         {showSplash && (
@@ -292,7 +292,7 @@ export default function App() {
           />
 
           {/* Main Content Area */}
-          <main className="flex-1 px-4 py-5 max-w-5xl mx-auto w-full">
+          <main className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 lg:px-8 py-5 w-full">
             <AnimatePresence mode="wait">
               {/* PLAN TAB: Centered around "Which journey should I take?" */}
               {activeTab === 'plan' && (
@@ -348,7 +348,7 @@ export default function App() {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.18 }}
                 >
-                  <Suspense fallback={<ViewLoader label="Rendering Chennai Metro Interactive Map" />}>
+                  <Suspense fallback={<ViewLoader label="Loading your journey route" />}>
                     <MetroNetworkMap
                       currentStop={currentStop}
                       destination={selectedDestination}
