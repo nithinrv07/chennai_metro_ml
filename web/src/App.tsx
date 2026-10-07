@@ -149,6 +149,15 @@ export default function App() {
       // 1. Instant local optimistic calculation
       const fallbackList = getRecalculatedTrains(activeHours, activeMinutes, activeDay, currentStop, selectedDestination);
 
+      // Local operating hours still apply when the API is unavailable.
+      if (activeHours < 5 || activeHours >= 23) {
+        setBuses([]);
+        setTelemetrySource('closed');
+        setLastUpdateTime(Date.now());
+        setSecondsAgo(0);
+        return;
+      }
+
       // 2. Query Scikit-Learn ML backend
       const mlResult = await fetchMLTrains(
         currentStop.name,
@@ -164,7 +173,7 @@ export default function App() {
       setSecondsAgo(0);
 
       if (mlResult) {
-        if (mlResult.service_status === 'Closed' || (Array.isArray(mlResult.trains) && mlResult.trains.length === 0)) {
+        if (mlResult.service_status === 'Closed') {
           setBuses([]);
           setTelemetrySource('closed');
         } else if (mlResult.service_status === 'Invalid Station') {

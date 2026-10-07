@@ -120,7 +120,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   };
 
   // Service Closed check
-  const isClosed = !isLoading && (telemetrySource === 'closed' || (buses && buses.length === 0));
+  const isClosed = !isLoading && telemetrySource === 'closed';
 
   return (
     <div id="home-dashboard-view" className="space-y-6 pb-24 w-full">

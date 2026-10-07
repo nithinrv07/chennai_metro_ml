@@ -156,6 +156,8 @@ export async function fetchMLTrains(
       }),
     });
     if (!res.ok) {
+      // An unavailable API (including a static Vercel 404) is not a metro closure.
+      if (res.status !== 400) return null;
       const errJson = await res.json().catch(() => ({}));
       return {
         station_name: stationName,
@@ -164,10 +166,10 @@ export async function fetchMLTrains(
         minute,
         day_of_week: dayOfWeek,
         ml_confidence: 0,
-        base_crowd_level: res.status === 400 ? 'Invalid Station' : 'Closed',
+        base_crowd_level: 'Invalid Station',
         base_density_pct: 0,
         trains: [],
-        service_status: res.status === 400 ? 'Invalid Station' : 'Closed',
+        service_status: 'Invalid Station',
         message: errJson.detail || errJson.error || `HTTP ${res.status}`
       };
     }
